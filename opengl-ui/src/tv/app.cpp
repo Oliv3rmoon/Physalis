@@ -1332,9 +1332,10 @@ void App::draw_header(ui::Canvas &canvas) const
     const Rect last = tabs_.tab_rect(fonts, kTabCount - 1);
     const Rect lens{first.x - 62.0f, kHeaderY - 22.0f, 44.0f, 44.0f};
     const float l1 = ui::button_width(ui::Button::l1, 34.0f);
-    // The name stays clear of the L1 hint before the search lens: a little smaller if need be.
+    // The name stays clear of where the L1 hint before the search lens is while the tabs are not
+    // scrolled: a little smaller if need be, and the same size whichever tab is open.
     const char *name = "Nightshade TV";
-    const float room = lens.x - l1 - 16.0f - 12.0f - (kMargin + 58.0f);
+    const float room = tabs_.bounds().x - 62.0f - l1 - 16.0f - 12.0f - (kMargin + 58.0f);
     float name_size = shared_.settings.larger_text ? 24.0f : 30.0f;
     if (fonts.display.font != nullptr)
         if (const float wide = fonts.display.measure(name, name_size); wide > room && wide > 0.0f)
