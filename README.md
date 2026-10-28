@@ -1,4 +1,96 @@
 <p align="center">
+  <img src="sce_sys/icon0.png" width="128" alt="Nightshade TV icon">
+</p>
+
+<h1 align="center">Nightshade TV</h1>
+
+<p align="center">
+  <strong>Live TV for PS5 homebrew, by Oliv3rmoon: everything in ProsperoTV, in Nightshade's black and red, updated from its own releases.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Oliv3rmoon/Nightshade-TV/releases/latest"><img src="https://img.shields.io/github/v/release/Oliv3rmoon/Nightshade-TV?style=for-the-badge&label=download&color=e5484d&labelColor=0d0d0f" alt="Download the latest release"></a>
+  <a href="https://discord.gg/pSqgRU3YP9"><img src="https://img.shields.io/badge/discord-nightly-0d0d0f?style=for-the-badge&logo=discord&logoColor=e5484d" alt="Discord: nightly"></a>
+  <a href="https://buymeacoffee.com/oliv3rmoon"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-0d0d0f?style=for-the-badge&logo=buymeacoffee&logoColor=e5484d" alt="Buy me a coffee"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-0d0d0f?style=for-the-badge&labelColor=0d0d0f&color=e5484d" alt="GPL-3.0-or-later"></a>
+</p>
+
+Nightshade TV is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. It is
+[ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV) 01.000.090, the native IPTV client for
+PS5 homebrew, with the look of [Nightshade](https://github.com/Oliv3rmoon/Nightshade) and updates
+from this repository. The current release is **01.001.000**; what changed is in the
+[changelog](docs/CHANGELOG.md).
+
+## What you get
+
+- **Everything in ProsperoTV.** Your own M3U playlists, Xtream Codes accounts and portals, the
+  programme guide, movies and series, recordings, multiview, the phone remote and the TV's own
+  remote, in nine languages. Nothing is taken out.
+- **Nightshade's look.** Black and red, clean and dark: black glass panels, a red accent, a
+  near-black sky with a low red glow, and the nightshade flower as the mark, the icon and the
+  home-screen pictures. The Ocean and Forest themes are still in **Settings**.
+- **Updates from its own releases.** At the start it asks
+  [Oliv3rmoon/Nightshade-TV](https://github.com/Oliv3rmoon/Nightshade-TV/releases) for a newer
+  release, shows its notes, and installs it with **Update now**. It never offers ProsperoTV's own
+  releases, which would put the old look back.
+- **No channels of its own.** Like ProsperoTV, it ships no channel list: every channel comes from a
+  source you add.
+
+## Install
+
+1. Close ProsperoTV (or Nightshade TV).
+2. Download `PPSA99003.zip` from the [latest release](https://github.com/Oliv3rmoon/Nightshade-TV/releases/latest)
+   and unzip it.
+3. Copy its `PPSA99003` folder over your current one (for example `/data/homebrew/PPSA99003`),
+   replacing the files.
+
+It keeps ProsperoTV's title ID, so it replaces ProsperoTV, and your sources, favorites, recent
+channels and settings stay as they are (they live in `/data/prosperotv`). The home
+screen calls it **Nightshade TV**. To go back, copy an
+[official release](https://github.com/ThatGuyKalvin/ProsperoTV/releases) over it the same way. If
+ProsperoTV is installed as an image (`PPSA99003.ffpfsc`), remove the image first, as described in
+[Updating ProsperoTV](#updating-prosperotv) below.
+
+## Updates
+
+Once per launch Nightshade TV asks GitHub for the newest release of
+[Oliv3rmoon/Nightshade-TV](https://github.com/Oliv3rmoon/Nightshade-TV/releases) that is not a
+pre-release. When it is newer than the one installed and carries `PPSA99003.zip` and
+`SHA256SUMS`, the app offers **Update now**, **What's new** and **Later**; **Update now** downloads
+the ZIP, checks it against `SHA256SUMS`, and replaces the app's files once it has closed. Your data
+in `/data/prosperotv` is not touched. Like ProsperoTV, it needs filesystem access for this (the
+payload loader on port 9021 that a ShadowMountPlus setup runs); without it, update by copying the
+folder as above. A release ZIP built by this repository's workflow can be checked with
+`gh attestation verify PPSA99003.zip -R Oliv3rmoon/Nightshade-TV`.
+
+## Requests, bugs and support
+
+- **Ask for a fix or a feature:** [open an issue](https://github.com/Oliv3rmoon/Nightshade-TV/issues/new/choose),
+  or ask in **[nightly on Discord](https://discord.gg/pSqgRU3YP9)**.
+- **Bugs in my releases:** open an issue here. Turn on **Diagnostic log** in Settings first; Settings
+  shows where the log is. Leave playlist addresses and passwords out.
+- **If my work helps you,** you can [buy me a coffee](https://buymeacoffee.com/oliv3rmoon).
+
+## Credits
+
+- **[ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV)**, by **BlackBearReloaded**
+  ([GitHub](https://github.com/blackbearreloaded)), who created it and wrote most of it, carried on
+  by **ThatGuyKalvin** and its contributors and testers (see [Thanks](#thanks) below). Nightshade TV
+  is their app with a new look and a new update source; the credit for it is theirs.
+- **[iptv-org](https://github.com/iptv-org/iptv)**, whose community-maintained public playlists
+  ProsperoTV first played. Neither Nightshade TV nor ProsperoTV ships them now, and neither is
+  affiliated with iptv-org.
+- **[Nightshade](https://github.com/Oliv3rmoon/Nightshade)**, whose palette, art code and GitHub
+  update check this release reuses.
+
+Nightshade TV is an unofficial release. ProsperoTV is made by BlackBearReloaded, ThatGuyKalvin and
+their contributors; neither they nor Sony endorse Nightshade TV. It is free software under the GNU
+General Public License, version 3 or later, as ProsperoTV is ([LICENSE](LICENSE)). Everything below
+is the official README.
+
+---
+
+<p align="center">
   <img src="sce_sys/icon0.png" width="128" alt="ProsperoTV icon">
 </p>
 
@@ -10,12 +102,6 @@
   Codes provider with an offline-first SQLite cache, a
   controller-first interface, native PS5 video decoding, and updates that
   install themselves.
-</p>
-
-<p align="center">
-  <a href="https://github.com/ThatGuyKalvin/ProsperoTV/actions/workflows/tooling.yml"><img src="https://github.com/ThatGuyKalvin/ProsperoTV/actions/workflows/tooling.yml/badge.svg" alt="Build"></a>
-  <a href="https://github.com/ThatGuyKalvin/ProsperoTV/releases/latest"><img src="https://img.shields.io/github/v/release/ThatGuyKalvin/ProsperoTV?display_name=tag" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg" alt="GPL-3.0-or-later"></a>
 </p>
 
 ![ProsperoTV Live TV screen](docs/images/prosperotv.png)
