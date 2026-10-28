@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 name: "Bug report"
-description: "Something in ProsperoTV does not work as it should"
+description: "Something in Nightshade TV does not work as it should"
 title: "[Bug] "
 labels: ["bug"]
 body:
@@ -12,14 +12,14 @@ body:
       value: |
         **Before you post**
 
-        - ProsperoTV ships no channels. Do not post or ask for playlists, provider names, logins or stream links.
+        - Nightshade TV ships no channels. Do not post or ask for playlists, provider names, logins or stream links.
         - Remove playlist addresses and credentials from logs and screenshots.
         - Do not post Sony SDK files, firmware, decrypted system files, keys or links to them.
   - type: input
     id: version
     attributes:
       label: "App version"
-      description: "The release you installed, for example 01.000.050"
+      description: "The release you installed, for example 01.001.000"
     validations:
       required: true
   - type: input
@@ -61,7 +61,8 @@ body:
     attributes:
       label: "How did you install it?"
       options:
-        - "ProsperoStore"
+        - "Update in the app"
+        - "GitHub release ZIP (Oliv3rmoon/Nightshade-TV)"
         - "Manual copy (USB or FTP)"
         - "Built from source"
     validations:

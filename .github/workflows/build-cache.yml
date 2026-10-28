@@ -32,6 +32,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
+          # Nightshade TV: a repository without the release yet gets it, as a pre-release that is
+          # never "latest" (the app's update check reads releases/latest and must not find it).
+          if ! gh release view build-cache --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create build-cache --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \
+              --title "Build cache" --notes "Compiler cache snapshots for the Build workflow. Not a release of the app."
+          fi
           if gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name ccache-snapshot-build --dir snapshot; then
             gh release upload build-cache "snapshot/ccache-clang18-build.tar" --clobber --repo "$GITHUB_REPOSITORY"
           else

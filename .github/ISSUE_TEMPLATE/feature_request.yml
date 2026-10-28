@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 name: "Feature request"
-description: "An idea or improvement for ProsperoTV"
+description: "An idea or improvement for Nightshade TV"
 title: "[Feature] "
 labels: ["enhancement"]
 body:
@@ -12,7 +12,7 @@ body:
       value: |
         **Before you post**
 
-        - ProsperoTV ships no channels. Do not post or ask for playlists, provider names, logins or stream links.
+        - Nightshade TV ships no channels. Do not post or ask for playlists, provider names, logins or stream links.
         - Remove playlist addresses and credentials from logs and screenshots.
         - Do not post Sony SDK files, firmware, decrypted system files, keys or links to them.
   - type: textarea
