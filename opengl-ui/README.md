@@ -5,7 +5,10 @@ ProsperoTV's interface since 01.000.020, built on the
 frosted panels over a red sky, a hero for the channel in focus, a scrolling
 grid with the alphabet beside it, a search drawer, a tuning screen that runs
 until a channel's first picture, and an update that installs itself when a
-newer version is listed on prosperostore.net. It is drawn with OpenGL (ps5-opengl
+newer version is listed on prosperostore.net. In Nightshade TV the panels are
+black glass over a near-black sky with a low red glow (`src/tv/theme.*`), and
+the update comes from Oliv3rmoon/Nightshade-TV's GitHub releases (see
+[Updates](#updates)). It is drawn with OpenGL (ps5-opengl
 SDK) instead of the earlier versions' SDL and RmlUi; the catalog, the stores and
 the player are the same sources as before, used from the folder above.
 It asks for filesystem access the way ProsperoEden does, keeps its files in
