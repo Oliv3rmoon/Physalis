@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace host
 {
@@ -42,6 +43,19 @@ struct RequestRecord
     std::string user_agent{}, referrer{}, extra_headers{};
 };
 std::vector<RequestRecord> requests();
+// The stand-in for platform::api_request: the answer to a method and an exact URL. A request
+// nobody set an answer for gets none (status 0), as an unreachable server would.
+void set_api_response(const std::string &method, const std::string &url, int status,
+                      const std::string &body);
+struct ApiRecord
+{
+    std::string method, url;
+    std::vector<std::string> headers;
+};
+// Every API request since reset(), in order.
+std::vector<ApiRecord> api_requests();
+// The headers the last fetch of this picture carried.
+std::vector<std::string> image_headers(const std::string &url);
 // How many bytes of lists were handed over, all downloads together.
 std::size_t delivered_bytes();
 

@@ -41,6 +41,9 @@ class ImageCache
     void update(const std::vector<std::string> &urls);
     ImageTexture find(std::string_view url) const;
     void clear();
+    // Headers ("Name: value") pictures from one origin (scheme, host and port) are fetched
+    // with: a Plex server's token, sent to that server and nowhere else.
+    void set_credentials(std::string origin, std::vector<std::string> headers);
 
   private:
     struct Entry
@@ -57,5 +60,8 @@ class ImageCache
     std::atomic<bool> done_{false}, stop_{false};
     std::string fetching_;
     ImagePixels pending_;
+    // Read by the worker for the picture it fetches; set between fetches only.
+    std::string origin_;
+    std::vector<std::string> headers_, fetch_headers_;
 };
 } // namespace ptv

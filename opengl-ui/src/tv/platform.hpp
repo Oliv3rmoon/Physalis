@@ -50,8 +50,30 @@ iptv::http::FetchResult fetch_list(const char *url, const iptv::http::ListSink &
                                    const iptv::http::RequestHeaders *headers = nullptr);
 // Artwork has an independent connection and cancellation lifetime, so a slow
 // logo cannot interrupt a source refresh or programme guide download.
+// `headers` are "Name: value" lines sent with it (a Plex server's token).
 bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
-                 const iptv::http::RequestControl *control);
+                 const iptv::http::RequestControl *control,
+                 const std::vector<std::string> *headers = nullptr);
+
+// A small API call (Plex's) on a connection of its own, like the artwork: it
+// shares nothing with the catalog's or the player's network, so it may run
+// beside a playing film. GET, POST or PUT with an empty body; redirects are
+// not followed, so the headers (a token among them) never reach another host.
+struct ApiRequest
+{
+    const char *method = "GET";
+    std::string url;
+    std::vector<std::string> headers; // "Name: value"
+    unsigned connect_ms = 5000;
+    unsigned timeout_ms = 15000; // the whole request
+    std::size_t limit = 8u * 1024u * 1024u;
+};
+struct ApiReply
+{
+    int status = 0; // the HTTP status; 0 when nothing answered
+    std::string body;
+};
+ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl *control);
 
 // ---- updates ----
 // Once per launch the machine asks GitHub whether Oliv3rmoon/Nightshade-TV has a

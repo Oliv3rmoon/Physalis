@@ -33,7 +33,7 @@ int progress(void *context, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
 } // namespace
 
 bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
-                 const iptv::http::RequestControl *control)
+                 const iptv::http::RequestControl *control, const std::vector<std::string> *headers)
 {
     bytes->clear();
     if (!iptv::http::IsSupportedPlaylistUrl(url) || tv_http_init(0, 0, 0) < 0)
@@ -42,12 +42,19 @@ bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
     if (!curl)
         return false;
     Download download{bytes, control};
+    curl_slist *list = nullptr;
+    if (headers)
+        for (const auto &header : *headers)
+            list = curl_slist_append(list, header.c_str());
     console_curl_setup(curl);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "ProsperoTV");
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    // A picture that needs a header of its own (a Plex token) is not followed elsewhere.
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, list ? 0L : 1L);
+    if (list)
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 3000L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 8000L);
@@ -61,6 +68,7 @@ bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
     long status = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_cleanup(curl);
+    curl_slist_free_all(list);
     if (result == CURLE_OK && status == 200 && !progress(&download, 0, 0, 0, 0))
         return true;
     bytes->clear();

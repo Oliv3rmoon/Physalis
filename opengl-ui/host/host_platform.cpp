@@ -16,6 +16,7 @@
 #include <limits>
 #include <mutex>
 #include <pthread.h>
+#include <map>
 #include <thread>
 #include <unordered_map>
 
@@ -47,6 +48,10 @@ struct Network
     std::atomic<bool> cancelled{false};
     std::atomic<int> fetches{0};
     std::atomic<std::size_t> delivered{0};
+    // The stand-in API (Plex): answers by method and exact URL.
+    std::map<std::string, std::pair<int, std::string>> api;
+    std::vector<host::ApiRecord> api_requests;
+    std::unordered_map<std::string, std::vector<std::string>> image_headers;
 };
 
 struct Update
@@ -146,6 +151,26 @@ int fetch_count()
     return g_network.fetches.load();
 }
 
+void set_api_response(const std::string &method, const std::string &url, int status,
+                      const std::string &body)
+{
+    const std::lock_guard<std::mutex> lock(g_network.mutex);
+    g_network.api[method + " " + url] = {status, body};
+}
+
+std::vector<ApiRecord> api_requests()
+{
+    const std::lock_guard<std::mutex> lock(g_network.mutex);
+    return g_network.api_requests;
+}
+
+std::vector<std::string> image_headers(const std::string &url)
+{
+    const std::lock_guard<std::mutex> lock(g_network.mutex);
+    const auto found = g_network.image_headers.find(url);
+    return found == g_network.image_headers.end() ? std::vector<std::string>{} : found->second;
+}
+
 std::vector<RequestRecord> requests()
 {
     const std::lock_guard<std::mutex> lock(g_network.mutex);
@@ -204,6 +229,9 @@ void reset()
         const std::lock_guard<std::mutex> lock(g_network.mutex);
         g_network.responses.clear();
         g_network.requests.clear();
+        g_network.api.clear();
+        g_network.api_requests.clear();
+        g_network.image_headers.clear();
     }
     set_network_piece(0);
     g_network.fetches.store(0);
@@ -361,13 +389,43 @@ void network_cancel()
     g_network.cancelled.store(true);
 }
 
+ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl *control)
+{
+    ApiReply reply;
+    unsigned delay = 0;
+    {
+        const std::lock_guard<std::mutex> lock(g_network.mutex);
+        g_network.api_requests.push_back(
+            {request.method ? request.method : "", request.url, request.headers});
+        const auto found = g_network.api.find(std::string(request.method ? request.method : "") +
+                                              " " + request.url);
+        if (found != g_network.api.end())
+        {
+            reply.status = found->second.first;
+            reply.body = found->second.second.substr(0, request.limit);
+        }
+        delay = g_network.delay_ms;
+    }
+    for (unsigned waited = 0; waited < delay; waited += 5)
+    {
+        if (control && control->cancelled && control->cancelled(control->context))
+            return {};
+        sleep_ms(5);
+    }
+    if (control && control->cancelled && control->cancelled(control->context))
+        return {};
+    return reply;
+}
+
 bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
-                 const iptv::http::RequestControl *control)
+                 const iptv::http::RequestControl *control, const std::vector<std::string> *headers)
 {
     std::string path;
     unsigned delay = 0;
     {
         const std::lock_guard<std::mutex> lock(g_network.mutex);
+        if (url)
+            g_network.image_headers[url] = headers ? *headers : std::vector<std::string>{};
         if (!url || !g_network.reachable || !g_network.responses.contains(url))
             return false;
         path = g_network.responses.at(url);

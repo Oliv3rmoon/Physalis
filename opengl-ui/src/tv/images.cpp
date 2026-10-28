@@ -181,6 +181,15 @@ void ImageCache::clear()
     entries_.clear();
     pending_ = {};
 }
+void ImageCache::set_credentials(std::string origin, std::vector<std::string> headers)
+{
+    if (origin.empty())
+        headers.clear();
+    if (origin == origin_ && headers == headers_)
+        return;
+    origin_ = std::move(origin);
+    headers_ = std::move(headers);
+}
 ImageTexture ImageCache::find(std::string_view url) const
 {
     const auto found = entries_.find(std::string(url));
@@ -192,7 +201,9 @@ void *ImageCache::work(void *self)
     std::vector<std::uint8_t> bytes;
     const iptv::http::RequestControl control{
         [](void *context) { return static_cast<ImageCache *>(context)->stop_.load(); }, &cache};
-    if (platform::fetch_image(cache.fetching_.c_str(), &bytes, &control) && !cache.stop_.load())
+    if (platform::fetch_image(cache.fetching_.c_str(), &bytes, &control,
+                              cache.fetch_headers_.empty() ? nullptr : &cache.fetch_headers_) &&
+        !cache.stop_.load())
         (void)decode_image(bytes, &cache.pending_);
     cache.done_.store(true);
     return nullptr;
@@ -245,6 +256,11 @@ void ImageCache::update(const std::vector<std::string> &urls)
         entry.used = tick_;
         entry.retry = now + 60;
         fetching_ = url;
+        // Only the origin the headers belong to gets them, never a picture from elsewhere.
+        fetch_headers_.clear();
+        if (!origin_.empty() && url.size() > origin_.size() && url.starts_with(origin_) &&
+            url[origin_.size()] == '/')
+            fetch_headers_ = headers_;
         done_.store(false);
         stop_.store(false);
         thread_ = platform::thread_start(work, this, 1024u * 1024u, "ptv-image");
