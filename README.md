@@ -88,12 +88,18 @@ servers). In your Plex account's device list the console is **Nightshade TV (PS5
 - Search, Home and Continue, newest first, hidden categories and parental rules, as for other
   on-demand titles.
 - Resuming where a title was left, on any device (Plex's resume point); progress told to the server
-  every ten seconds and when playback stops; the title marked watched when it ends, or once 90% of
-  it was seen.
+  every ten seconds and when playback stops (sent in the background, so the menu comes back at
+  once); the title marked watched when it plays to its end.
 - The connection: the local address at home, the remote one away, Plex's relay as a last resort,
-  https before http, as [PlxNative](https://github.com/GLinnik21/plx-native) ranks them. A
-  connection counts when its `/identity` names the server, and the server is looked for once per
-  launch.
+  https before http, as [PlxNative](https://github.com/GLinnik21/plx-native) ranks them, all of
+  them asked at once. A connection counts when its `/identity` names the server. Plain http is
+  tried only on your own network (when plex.tv says the server stands behind your router), since
+  over http any box could answer for it; a `*.plex.direct` name is dialled at the address plex.tv
+  gives for it, so https works behind a router that blocks such names. The server is looked for
+  once per launch, and until it has answered nothing is sent to it: no poster, list or title, and
+  no token. One that does not answer says **Can't be reached** in Sources; its saved lists stay,
+  and **Options** looks for it again. Signing in saves only servers that answered; **Find
+  servers** adds the others later.
 - Sound and subtitle tracks from the playback menu, as far as the player reads them in the file or
   in the transcoder's stream.
 
@@ -111,14 +117,17 @@ to the server (its processor, and Plex Pass for hardware transcoding).
 - No live TV or DVR, music or photos from Plex, and no Watchlist, Discover or Plex's own hubs.
 - Search is the app's own, over the downloaded lists; Plex's server search is not used.
 - No quality choice for the transcoder: it aims at the PS5's limit, 4K at up to 40 Mbit/s.
-- Plex servers are not sent to another console with **Share with another console**, and not on
-  the phone remote's source form: each console signs in itself.
+- Plex servers are not sent to another console with **Share with another console**, not on the
+  phone remote's source form, and not in settings backups: each console signs in itself, and
+  again after a restore.
 - Not yet run on a console with a real Plex server: the host tests check it against recorded
   answers from plex.tv and a server.
 
 **The tokens.** They are kept as Xtream passwords are: each server's token in its source's
 password, the account's token and this console's client identifier in `prosperotv-plex-v1.txt`
-beside the sources (`/data/prosperotv/config`, or the title's storage), and in backups. They travel
+beside the sources (`/data/prosperotv/config`, or the title's storage). A backup leaves the Plex
+servers out, and signing out overwrites their rows in the file rather than only removing them.
+They travel
 in `X-Plex-Token` headers only, to the server they belong to, never in an address, so no cache,
 receipt or failure report has them, and the diagnostic log never contains them or the account's
 name.
