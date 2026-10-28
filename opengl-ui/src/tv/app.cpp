@@ -28,6 +28,38 @@ std::string title_count(const std::optional<unsigned> &count)
 {
     return count ? group_digits(*count) : std::string("—");
 }
+
+// A QR code of `text` (version 5 at most), its modules row by row; none when it does not fit.
+std::vector<bool> encode_qr(const std::string &text, int *size)
+{
+    std::vector<bool> modules;
+    *size = 0;
+    uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(5)];
+    uint8_t temporary[sizeof(qr)];
+    if (text.empty() || !qrcodegen_encodeText(text.c_str(), temporary, qr, qrcodegen_Ecc_MEDIUM, 1,
+                                              5, qrcodegen_Mask_AUTO, true))
+        return modules;
+    *size = qrcodegen_getSize(qr);
+    for (int y = 0; y < *size; ++y)
+        for (int x = 0; x < *size; ++x)
+            modules.push_back(qrcodegen_getModule(qr, x, y));
+    return modules;
+}
+
+// Black on white with four modules of quiet zone, `width` across at most.
+void draw_qr(gfx::DrawList &list, const std::vector<bool> &modules, int size, float left, float top,
+             float width)
+{
+    if (size <= 0)
+        return;
+    const float cell = std::floor(width / (size + 8));
+    list.rounded_rect({left, top, cell * (size + 8), cell * (size + 8)}, 0, Color::rgb(0xffffff));
+    for (int y = 0; y < size; ++y)
+        for (int x = 0; x < size; ++x)
+            if (modules[static_cast<size_t>(y * size + x)])
+                list.rounded_rect({left + (x + 4) * cell, top + (y + 4) * cell, cell, cell}, 0,
+                                  Color::rgb(0x000000));
+}
 // The opening: the set stands in the middle; its moments, in seconds.
 constexpr Rect kIntroSet{(kWidth - 800.0f) * 0.5f, 250.0f, 800.0f, 520.0f};
 constexpr float kIntroArrive = 0.55f; // the set comes out of the dark
@@ -140,6 +172,8 @@ const char *source_label(iptv::SourceKind source)
         return tr("Your HDHomeRun tuner");
     case iptv::SourceKind::Tvheadend:
         return tr("Your Tvheadend server");
+    case iptv::SourceKind::Plex:
+        return tr("Your Plex server");
     case iptv::SourceKind::BuiltIn:
         break;
     }
@@ -156,6 +190,7 @@ App::App(Model &model, const ui::Fonts &fonts, std::uint32_t glass_texture,
       version_(std::move(version))
 {
     const ui::Theme &theme = shared_.theme;
+    plex_qr_ = encode_qr(plex::kLinkUrl, &plex_qr_size_);
 
     shared_.toasts.style.theme = theme;
     shared_.toasts.style.frosted = true;
@@ -416,19 +451,7 @@ void App::set_pairing_info(std::string url, std::string code, unsigned seconds, 
     if (pair_url_ != url)
     {
         pair_url_ = std::move(url);
-        pair_qr_.clear();
-        pair_qr_size_ = 0;
-        uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(5)];
-        uint8_t temporary[sizeof(qr)];
-        if (!pair_url_.empty() &&
-            qrcodegen_encodeText(pair_url_.c_str(), temporary, qr, qrcodegen_Ecc_MEDIUM, 1, 5,
-                                 qrcodegen_Mask_AUTO, true))
-        {
-            pair_qr_size_ = qrcodegen_getSize(qr);
-            for (int y = 0; y < pair_qr_size_; ++y)
-                for (int x = 0; x < pair_qr_size_; ++x)
-                    pair_qr_.push_back(qrcodegen_getModule(qr, x, y));
-        }
+        pair_qr_ = encode_qr(pair_url_, &pair_qr_size_);
     }
     pair_code_ = std::move(code);
     pair_seconds_ = seconds;
@@ -446,18 +469,7 @@ void App::draw_pairing(ui::Canvas &canvas) const
     ui::text(list, fonts.display, tr("Pair a phone"), 380, 255, 54, theme.text);
     ui::text(list, fonts.regular, tr("Use the same Wi-Fi as your PS5."), 380, 305, 26,
              theme.text_muted);
-    if (pair_qr_size_ > 0)
-    {
-        const float cell = std::floor(380.0f / (pair_qr_size_ + 8));
-        const float size = cell * (pair_qr_size_ + 8);
-        const float left = 380.0f, top = 350.0f;
-        list.rounded_rect({left, top, size, size}, 0, Color::rgb(0xffffff));
-        for (int y = 0; y < pair_qr_size_; ++y)
-            for (int x = 0; x < pair_qr_size_; ++x)
-                if (pair_qr_[static_cast<size_t>(y * pair_qr_size_ + x)])
-                    list.rounded_rect({left + (x + 4) * cell, top + (y + 4) * cell, cell, cell}, 0,
-                                      Color::rgb(0x000000));
-    }
+    draw_qr(list, pair_qr_, pair_qr_size_, 380.0f, 350.0f, 380.0f);
     ui::text(list, fonts.semibold, tr("1. Scan to open the remote"), 825, 390, 30, theme.text);
     ui::text(list, fonts.regular, pair_url_.empty() ? tr("Remote unavailable") : pair_url_, 825,
              442, 28, theme.text_muted);
@@ -484,6 +496,48 @@ void App::draw_pairing(ui::Canvas &canvas) const
     ui::text(list, fonts.regular, tr("Your browser reconnects automatically on future visits."),
              380, 800, 26, theme.text_muted);
     const ui::Hint close[] = {{ui::Button::circle, tr("Close")}};
+    ui::HintLayout layout;
+    layout.size = 34.0f;
+    layout.text_size = 24.0f;
+    layout.font = &fonts.semibold;
+    layout.cy = 842.0f;
+    draw_hint_row(list, fonts, close, 1, 1580, 1200, layout, true);
+}
+
+// The Plex code to enter at plex.tv/link, beside a QR code that opens the page.
+void App::draw_plex_sign_in(ui::Canvas &canvas) const
+{
+    auto &list = canvas.list;
+    const auto &fonts = canvas.fonts;
+    const auto &theme = shared_.theme;
+    const auto view = shared_.model.plex_sign_in_view();
+    list.rounded_rect({0, 0, kWidth, kHeight}, 0, tone::night.with_alpha(0.88f));
+    draw_glass(canvas, theme, {300, 170, 1320, 730}, 28);
+    ui::text(list, fonts.display, tr("Sign in to Plex"), 380, 255, 54, theme.text);
+    ui::text(list, fonts.regular, tr("On a phone or computer signed in to Plex."), 380, 305, 26,
+             theme.text_muted);
+    draw_qr(list, plex_qr_, plex_qr_size_, 380.0f, 350.0f, 380.0f);
+    ui::text(list, fonts.semibold, tr("1. Scan, or go to"), 825, 390, 30, theme.text);
+    ui::text(list, fonts.regular, "plex.tv/link", 825, 442, 28, theme.text_muted);
+    ui::text(list, fonts.semibold, tr("2. Enter this code"), 825, 515, 30, theme.text);
+    if (!view.code.empty())
+    {
+        ui::text(list, fonts.mono, view.code, 825, 620, 78, tone::accent);
+        ui::text(list, fonts.regular,
+                 tr("Expires in ") + std::to_string(view.seconds) + tr(" seconds"), 825, 680, 26,
+                 theme.text_muted);
+    }
+    else
+    {
+        ui::text(list, fonts.semibold,
+                 view.finishing ? tr("Signed in. Looking for your servers...")
+                                : tr("Asking plex.tv for a code..."),
+                 825, 602, 28, tone::accent);
+        list.arc(1120, 680, 18, 4, shared_.clock * 4, 2.2f, tone::accent);
+    }
+    ui::text(list, fonts.regular, tr("Your Plex movies and TV shows then appear under On demand."),
+             380, 800, 26, theme.text_muted);
+    const ui::Hint close[] = {{ui::Button::circle, tr("Cancel")}};
     ui::HintLayout layout;
     layout.size = 34.0f;
     layout.text_size = 24.0f;
@@ -825,6 +879,9 @@ void App::handle_screen(const InputFrame &input, ui::Feedback &feedback)
         case BrowseScreen::Result::sources:
             show_tab(kSources, true);
             break;
+        case BrowseScreen::Result::on_demand:
+            show_tab(kVod, true);
+            break;
         default:
             break;
         }
@@ -1115,6 +1172,14 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
             }
         }
     }
+    else if (model.plex_signing_in())
+    {
+        if (input.is_pressed(Action::back))
+        {
+            feedback.play(audio::Cue::back);
+            model.plex_cancel_sign_in();
+        }
+    }
     else if (pairing_open_)
     {
         if (input.is_pressed(Action::back))
@@ -1245,6 +1310,11 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
         vod_.update();
     if (tabs_.active() == kHome)
         home_.update();
+    {
+        auto credentials = model.image_credentials();
+        shared_.images.set_credentials(std::move(credentials.origin),
+                                       std::move(credentials.headers));
+    }
     shared_.images.update(browsing()                ? browse_.image_urls()
                           : tabs_.active() == kVod  ? vod_.image_urls()
                           : tabs_.active() == kHome ? home_.image_urls()
@@ -1772,6 +1842,8 @@ void App::draw(Frame &frame, bool themed) const
     }
     if (pairing_open_)
         draw_pairing(over);
+    if (shared_.model.plex_signing_in())
+        draw_plex_sign_in(over);
     frame.glass = !frame.overlay.empty();
     if (intro_ >= 0.0f)
         draw_intro(over);

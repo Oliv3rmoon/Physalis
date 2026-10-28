@@ -221,6 +221,7 @@ class App
     void draw_status(ui::Canvas &canvas) const;
     void draw_settings(ui::Canvas &canvas) const;
     void draw_pairing(ui::Canvas &canvas) const;
+    void draw_plex_sign_in(ui::Canvas &canvas) const;
     void draw_about(ui::Canvas &canvas) const;
     void draw_hints(ui::Canvas &canvas) const;
     void draw_intro(ui::Canvas &canvas) const;
@@ -260,6 +261,8 @@ class App
     std::string pair_url_, pair_code_;
     std::vector<bool> pair_qr_;
     int pair_qr_size_ = 0;
+    std::vector<bool> plex_qr_; // plex.tv/link
+    int plex_qr_size_ = 0;
     unsigned pair_seconds_ = 0;
     bool pairing_open_ = false, pair_requested_ = false, forget_requested_ = false;
     bool settings_changed_ = false;

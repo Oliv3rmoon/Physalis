@@ -35,6 +35,7 @@ enum class SourceKind : std::uint8_t
     Portal,
     HDHomeRun,
     Tvheadend,
+    Plex,
 };
 
 SourceStateStatus SaveCustomSourceUrl(const std::string &path, std::string_view url);

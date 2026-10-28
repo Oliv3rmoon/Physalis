@@ -176,6 +176,7 @@ void Model::poll_programme_jobs()
             : source->kind == 2
                 ? iptv::XtreamSourceId({source->url, source->username, source->password})
             : source->kind == 3 ? portal_source_id({source->url, source->mac})
+            : source->kind == 6 ? plex::source_id(source->mac)
             : source->kind >= 4 ? local_tv_source_id(*source)
                                 : source_id(iptv::SourceKind::BuiltIn);
         if (channels->source_id != expected_source)

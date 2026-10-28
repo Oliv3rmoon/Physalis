@@ -368,6 +368,11 @@ BrowseScreen::Result BrowseScreen::handle(const InputFrame &input, ui::Feedback 
             feedback.play(audio::Cue::select);
             return Result::sources;
         }
+        if (model.active_source() == iptv::SourceKind::Plex && input.is_pressed(Action::confirm))
+        {
+            feedback.play(audio::Cue::select);
+            return Result::on_demand;
+        }
         if (model.catalog_failed() && !model.refreshing() && input.is_pressed(Action::confirm))
         {
             feedback.play(audio::Cue::select);
@@ -683,6 +688,13 @@ void BrowseScreen::update(float dt)
         empty_.action = tr("Open Sources");
         empty_.set_bounds({420.0f, 300.0f, 1080.0f, 480.0f});
     }
+    else if (!model.has_catalog() && model.active_source() == iptv::SourceKind::Plex)
+    {
+        empty_.title = tr("Plex has no live channels");
+        empty_.body = tr("Your Plex movies and TV shows are on the On demand tab.");
+        empty_.action = tr("Open On demand");
+        empty_.set_bounds({420.0f, 300.0f, 1080.0f, 480.0f});
+    }
     else if (!model.has_catalog())
     {
         empty_.title = tr("The channel list could not be loaded");
@@ -976,7 +988,8 @@ void BrowseScreen::draw(ui::Canvas &canvas) const
     const Model &model = shared_.model;
     if (!model.has_catalog())
     {
-        if (model.catalog_failed() || !model.is_set_up(model.active_source()))
+        if (model.catalog_failed() || !model.is_set_up(model.active_source()) ||
+            model.active_source() == iptv::SourceKind::Plex)
             empty_.draw(canvas);
         else
             draw_waiting(canvas);
@@ -1084,6 +1097,8 @@ int BrowseScreen::hints(ui::Hint *out, int capacity) const
     {
         if (!model.is_set_up(model.active_source()))
             add({ui::Button::cross, tr("Open Sources")});
+        else if (model.active_source() == iptv::SourceKind::Plex)
+            add({ui::Button::cross, tr("Open On demand")});
         else if (model.catalog_failed() && !model.refreshing())
             add({ui::Button::cross, tr("Try again")});
         return count;

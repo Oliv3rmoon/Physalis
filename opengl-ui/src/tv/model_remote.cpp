@@ -48,8 +48,9 @@ int Model::remote_sources(std::string_view input, std::string &output)
         output = "[";
         for (const auto &source : sources_)
         {
-            // The first slot is no source at all.
-            if (source.kind == 0)
+            // The first slot is no source at all. A Plex server is the TV's own: its account
+            // signs in there, and the phone's form has nothing to edit in it.
+            if (source.kind == 0 || source.kind == 6)
                 continue;
             if (output.size() > 1)
                 output += ',';

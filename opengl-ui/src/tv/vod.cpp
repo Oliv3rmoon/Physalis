@@ -526,6 +526,185 @@ bool load_vod(const iptv::XtreamCredentials &account, VodKind kind, std::string_
     return ok;
 }
 
+bool load_plex_vod(const plex::Server &server, const plex::Identity &identity, VodKind kind,
+                   std::string_view series, iptv::Catalog *catalog,
+                   const iptv::http::RequestControl *control, std::string *error,
+                   VodMetadata *metadata, bool *truncated, std::size_t limit,
+                   const plex::Transport &transport)
+{
+    if (metadata)
+        metadata->clear();
+    if (truncated)
+        *truncated = false;
+    if (!catalog || !error)
+        return false;
+    catalog->Clear();
+    error->clear();
+    if (!server.valid() || (kind == VodKind::episodes && series.empty()))
+    {
+        *error = tr("Sign in to Plex in Sources.");
+        return false;
+    }
+    catalog->source_id = server.source_id;
+    const plex::Transport net = transport ? transport : plex::platform_transport(control);
+    const std::size_t most = limit ? std::min(limit, kLimit) : kLimit;
+    std::unordered_set<std::string> ids;
+    std::size_t text_bytes = 0, metadata_bytes = 0;
+    bool full = false;
+    const auto metadata_path = [&](std::string_view key)
+    {
+        std::string canonical;
+        (void)iptv::CanonicalizeStreamUrl(
+            server.base + "/library/metadata/" + plex::url_encode(key), &canonical);
+        return canonical;
+    };
+    // One title of the list, as the Xtream lists keep theirs.
+    const auto add = [&](plex::Item &&item, std::string_view group) -> bool
+    {
+        if (item.rating_key.empty() || item.title.empty() || !ids.insert(item.rating_key).second)
+            return true;
+        if (full || catalog->size() >= most)
+        {
+            full = true;
+            return true;
+        }
+        iptv::Channel row;
+        row.source_id = server.source_id;
+        row.media_kind =
+            kind == VodKind::movies ? iptv::MediaKind::movie : iptv::MediaKind::episode;
+        row.id = identifier(server.source_id, kind, item.rating_key);
+        row.tvg_id = item.rating_key;
+        row.name = item.title;
+        row.url = metadata_path(item.rating_key);
+        if (kind != VodKind::series)
+        {
+            // What plays as it is is named by its file; the rest by the title, which the
+            // transcoder is asked for when it is opened.
+            const auto choice = plex::choose_media(item);
+            if (choice.direct)
+                if (auto direct = plex::direct_url(server, item.media[choice.media_index]);
+                    !direct.empty())
+                    row.url = std::move(direct);
+        }
+        if (row.url.empty())
+            return true;
+        row.tvg_logo = plex::poster_url(server, item.thumb);
+        row.group_title = std::string(group.empty() ? std::string_view("Plex") : group);
+        if (kind == VodKind::episodes)
+        {
+            const auto season = static_cast<unsigned>(std::clamp(item.parent_index, 0, 999));
+            const auto episode = static_cast<unsigned>(std::clamp(item.index, 0, 99999));
+            row.group_title = "Season " + std::to_string(season);
+            row.source_line = season * 100000u + episode;
+            if (item.index >= 0)
+                row.name = "Episode " + std::to_string(episode) + " · " + row.name;
+        }
+        else
+        {
+            const auto when =
+                kind == VodKind::series && item.updated_at ? item.updated_at : item.added_at;
+            row.source_line = static_cast<std::uint32_t>(std::min<std::uint64_t>(when, UINT32_MAX));
+        }
+        const auto bytes = row.id.size() + row.name.size() + row.url.size() + row.tvg_logo.size() +
+                           row.group_title.size();
+        if (bytes > 96u * 1024u * 1024u - text_bytes)
+        {
+            full = true;
+            return true;
+        }
+        text_bytes += bytes;
+        if (metadata)
+        {
+            VodDetails details;
+            details.plot = std::move(item.summary);
+            details.cast = std::move(item.cast);
+            details.genre = std::move(item.genres);
+            details.year = std::move(item.year);
+            details.rating = std::move(item.rating);
+            details.poster = row.tvg_logo;
+            // Everything Plex says about a title comes with the list.
+            details.complete = true;
+            const auto size = detail_bytes(details) + row.id.size();
+            if (size <= 32u * 1024u * 1024u - metadata_bytes)
+            {
+                metadata_bytes += size;
+                metadata->emplace(row.id, std::move(details));
+            }
+        }
+        return catalog->Add(row);
+    };
+    const auto started = platform::monotonic_us();
+    bool ok = true;
+    std::size_t libraries = 0;
+    if (kind == VodKind::episodes)
+    {
+        std::vector<plex::Item> seasons;
+        ok = plex::children(net, identity, server, series, &seasons);
+        for (std::size_t i = 0; ok && i < seasons.size(); ++i)
+        {
+            auto &season = seasons[i];
+            if (season.type == "episode")
+            {
+                ok = add(std::move(season), {});
+                continue;
+            }
+            if (season.type != "season")
+                continue;
+            std::vector<plex::Item> episodes;
+            ok = plex::children(net, identity, server, season.rating_key, &episodes);
+            for (auto &episode : episodes)
+            {
+                if (episode.parent_index < 0)
+                    episode.parent_index = season.index;
+                if (ok && episode.type == "episode")
+                    ok = add(std::move(episode), {});
+            }
+            ++libraries;
+        }
+    }
+    else
+    {
+        std::vector<plex::Section> list;
+        ok = plex::sections(net, identity, server, &list);
+        const char *wanted = kind == VodKind::movies ? "movie" : "show";
+        for (const auto &section : list)
+        {
+            if (!ok || section.type != wanted)
+                continue;
+            ++libraries;
+            bool cut = false;
+            ok = plex::list_section(
+                net, identity, server, section, most, 200,
+                [&](plex::Item &&item) { return add(std::move(item), section.title); }, &cut);
+            full = full || cut;
+            if (full)
+                break;
+        }
+    }
+    const bool cancelled = control && control->cancelled && control->cancelled(control->context);
+    if (cancelled)
+        ok = false;
+    diag::event("on-demand plex %s: %s after %llu ms; %u titles from %zu %s%s",
+                kind == VodKind::movies   ? "films"
+                : kind == VodKind::series ? "shows"
+                                          : "episodes",
+                ok ? "loaded" : "failed",
+                static_cast<unsigned long long>((platform::monotonic_us() - started) / 1000),
+                static_cast<unsigned>(catalog->size()), libraries,
+                kind == VodKind::episodes ? "seasons" : "libraries",
+                full ? " (the first of a longer list)" : "");
+    if (!ok)
+    {
+        catalog->Clear();
+        if (metadata)
+            metadata->clear();
+        *error = tr("The Plex server's library could not be downloaded.");
+    }
+    else if (truncated)
+        *truncated = full;
+    return ok;
+}
+
 std::uint32_t VodLibrary::added(unsigned index) const
 {
     // A playlist row's source_line is where it was in the file, and an episode's its number.
@@ -541,7 +720,7 @@ const VodDetails &VodLibrary::details(std::string_view id) const
 }
 void VodLibrary::request_details(unsigned index)
 {
-    if (kind_ != VodKind::movies || index >= catalog_.size())
+    if (kind_ != VodKind::movies || index >= catalog_.size() || plex_.valid())
         return;
     const auto item = catalog_[index];
     if (details(item.id).complete)
@@ -579,13 +758,14 @@ void VodLibrary::configure(iptv::XtreamCredentials account, std::string cache,
                            std::string extra_headers)
 {
     schedule_ = schedule;
-    if (!playlist_ && account.server_url == account_.server_url &&
+    if (!playlist_ && !plex_.valid() && account.server_url == account_.server_url &&
         account.username == account_.username && account.password == account_.password &&
         cache == cache_ && user_agent == user_agent_ && referrer == referrer_ &&
         extra_headers == extra_headers_)
         return;
     stop();
     playlist_ = nullptr;
+    plex_ = {};
     account_ = std::move(account);
     user_agent_ = std::move(user_agent);
     referrer_ = std::move(referrer);
@@ -613,10 +793,48 @@ void VodLibrary::configure_like(const VodLibrary &source, bool reload)
         stop();
         key_.clear(); // Another browser may have refreshed the shared disk cache.
     }
+    if (source.plex_.valid())
+    {
+        configure_plex(source.plex_, source.plex_identity_, source.cache_, source.schedule_);
+        return;
+    }
     configure(source.account_, source.cache_, source.schedule_, source.user_agent_,
               source.referrer_, source.extra_headers_);
     if (source.playlist_)
         configure_playlist(source.playlist_);
+}
+void VodLibrary::configure_plex(plex::Server server, plex::Identity identity, std::string cache,
+                                RefreshSchedule schedule)
+{
+    schedule_ = schedule;
+    if (plex_.valid() && server.base == plex_.base && server.token == plex_.token &&
+        server.machine == plex_.machine && cache == cache_ &&
+        identity.client_id == plex_identity_.client_id)
+        return;
+    stop();
+    playlist_ = nullptr;
+    account_ = {};
+    user_agent_.clear();
+    referrer_.clear();
+    extra_headers_.clear();
+    plex_ = std::move(server);
+    plex_identity_ = std::move(identity);
+    cache_ = std::move(cache);
+    key_.clear();
+    catalog_.Clear();
+    metadata_.clear();
+    summary_ = {};
+    parked_ = {};
+    light_ = false;
+    detail_id_.clear();
+    east_asian_ = korean_ = false;
+    loaded_ = false;
+    status_ = available() ? tr("Choose Movies or TV shows.") : tr("Sign in to Plex in Sources.");
+    ++revision_;
+}
+std::uint64_t VodLibrary::fingerprint() const
+{
+    return plex_.valid() ? plex_.source_id : iptv::XtreamSourceId(account_);
 }
 std::size_t VodLibrary::find_series(std::string_view series, std::uint64_t source) const
 {
@@ -641,6 +859,7 @@ void VodLibrary::configure_playlist(const iptv::Catalog *playlist)
     stop();
     playlist_ = playlist;
     account_ = {};
+    plex_ = {};
     key_.clear();
     catalog_.Clear();
     metadata_.clear();
@@ -907,7 +1126,7 @@ void VodLibrary::select_counts(VodKind kind, bool force)
             ++revision_;
             return;
         }
-        loaded_ = summary_.valid && summary_.source_id == iptv::XtreamSourceId(account_);
+        loaded_ = summary_.valid && summary_.source_id == fingerprint();
         if (!loaded_)
             summary_ = {};
         saved_ = loaded_ ? summary_.saved_unix : 0;
@@ -1084,7 +1303,7 @@ void VodLibrary::start_load()
     load_from_disk_ = true;
     abandon_load_ = false;
     load_path_ = file();
-    load_source_id_ = iptv::XtreamSourceId(account_);
+    load_source_id_ = fingerprint();
     ok_ = saved_ok_ = false;
     stop_.store(false);
     done_.store(false);
@@ -1237,8 +1456,12 @@ void *VodLibrary::work(void *self)
         }
         else
         {
-            v.ok_ = load_vod(v.account_, v.kind_, v.series_, &v.pending_, &control, &v.error_,
-                             &v.pending_metadata_, &headers, &v.pending_truncated_);
+            v.ok_ = v.plex_.valid()
+                        ? load_plex_vod(v.plex_, v.plex_identity_, v.kind_, v.series_, &v.pending_,
+                                        &control, &v.error_, &v.pending_metadata_,
+                                        &v.pending_truncated_)
+                        : load_vod(v.account_, v.kind_, v.series_, &v.pending_, &control, &v.error_,
+                                   &v.pending_metadata_, &headers, &v.pending_truncated_);
             if (v.ok_)
             {
                 std::size_t bytes = 0;

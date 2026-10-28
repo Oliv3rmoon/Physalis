@@ -6,6 +6,7 @@
 #include "iptv_http.h"
 #include "iptv_xtream.h"
 #include "tv/library.hpp"
+#include "tv/plex.hpp"
 #include <atomic>
 #include <string>
 #include <map>
@@ -50,6 +51,13 @@ bool load_vod(const iptv::XtreamCredentials &account, VodKind kind, std::string_
               iptv::Catalog *catalog, const iptv::http::RequestControl *control, std::string *error,
               VodMetadata *metadata = nullptr, const iptv::http::RequestHeaders *headers = nullptr,
               bool *truncated = nullptr, std::size_t limit = 0);
+// The same lists from a Plex server: its movie libraries are the films and its show libraries
+// the shows, each library a category; a show's seasons hold its episodes.
+bool load_plex_vod(const plex::Server &server, const plex::Identity &identity, VodKind kind,
+                   std::string_view series, iptv::Catalog *catalog,
+                   const iptv::http::RequestControl *control, std::string *error,
+                   VodMetadata *metadata = nullptr, bool *truncated = nullptr,
+                   std::size_t limit = 0, const plex::Transport &transport = {});
 
 // Shares the app's network time with live-list and programme-guide downloads.
 // The Model grants that time through poll(can_download).
@@ -61,6 +69,14 @@ class VodLibrary
                    std::string user_agent = {}, std::string referrer = {},
                    std::string extra_headers = {});
     void configure_playlist(const iptv::Catalog *playlist);
+    void configure_plex(plex::Server server, plex::Identity identity, std::string cache,
+                        RefreshSchedule schedule);
+    bool plex() const
+    {
+        return plex_.valid();
+    }
+    // Whose lists these are: what the saved lists' source id must be.
+    std::uint64_t fingerprint() const;
     void configure_like(const VodLibrary &source, bool reload = false);
     std::size_t find_series(std::string_view series, std::uint64_t source) const;
     void playlist_updated();
@@ -89,7 +105,7 @@ class VodLibrary
     static void playlist_counts(const iptv::Catalog &playlist, unsigned *movies, unsigned *shows);
     bool available() const
     {
-        return playlist_ != nullptr || iptv::ValidateXtreamCredentials(account_);
+        return playlist_ != nullptr || plex_.valid() || iptv::ValidateXtreamCredentials(account_);
     }
     bool busy() const
     {
@@ -160,6 +176,8 @@ class VodLibrary
     bool light_ = false, load_pending_ = false, load_from_disk_ = false, abandon_load_ = false,
          force_after_load_ = false;
     iptv::XtreamCredentials account_;
+    plex::Server plex_;
+    plex::Identity plex_identity_;
     const iptv::Catalog *playlist_ = nullptr;
     std::string cache_, series_, key_, status_, user_agent_, referrer_, extra_headers_;
     RefreshSchedule schedule_ = RefreshSchedule::daily;

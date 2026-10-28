@@ -27,6 +27,7 @@
 
 #include <array>
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <cstddef>
 #include <cstdint>
@@ -75,6 +76,8 @@ struct PlayRequest
     std::string series_id;
     PortalCredentials portal;
     std::string portal_command;
+    // A title on a Plex server: the console asks the server what to play before it plays it.
+    plex::Playback plex;
 };
 
 // The lists a catalog is browsed by.
@@ -151,7 +154,7 @@ class Model
 {
   public:
     static constexpr unsigned kFacetMax = CatalogIndex::kFacetMax;
-    static constexpr unsigned kSourceCount = 6;
+    static constexpr unsigned kSourceCount = 7;
 
     // data_dir is where the app keeps its files: the title's own storage or
     // /data/prosperotv/config on the console, any folder on a PC. cache_dir
@@ -332,6 +335,56 @@ class Model
     bool finish_vod(const PlayRequest &request, std::uint64_t position_us,
                     std::uint64_t duration_us, bool completed);
     bool ask_vod_query();
+
+    // ---- Plex ----
+    // Sign-in on the TV: a code to enter at plex.tv/link (the QR code opens it), shown until
+    // someone enters it, it runs out, or the viewer goes back. The account's servers become
+    // sources, the first of them in use.
+    void plex_sign_in();
+    void plex_cancel_sign_in();
+    bool plex_signing_in() const
+    {
+        return plex_sign_in_ != nullptr;
+    }
+    struct PlexSignInView
+    {
+        std::string code;
+        unsigned seconds = 0;
+        bool waiting = false;   // the code is up
+        bool finishing = false; // entered: the servers are being looked up
+    };
+    PlexSignInView plex_sign_in_view() const;
+    bool plex_signed_in() const
+    {
+        return plex_account_.signed_in();
+    }
+    const std::string &plex_account_name() const
+    {
+        return plex_account_.name;
+    }
+    // Forgets the account's token and removes its servers from Sources.
+    bool plex_sign_out();
+    const plex::Identity &plex_identity() const
+    {
+        return plex_identity_;
+    }
+    // X-Plex-Version: this build's content version.
+    void set_app_version(std::string version)
+    {
+        plex_identity_.version = std::move(version);
+    }
+    // What a picture from the Plex server in use needs: its token, for its own origin only.
+    struct ImageCredentials
+    {
+        std::string origin;
+        std::vector<std::string> headers;
+    };
+    ImageCredentials image_credentials() const;
+    // How often plex.tv is asked whether the code was entered (tests make it short).
+    void set_plex_poll_interval(unsigned milliseconds)
+    {
+        plex_poll_ms_ = milliseconds;
+    }
 
     // ---- the catalog ----
     bool has_catalog() const
@@ -719,6 +772,12 @@ class Model
     void run_refresh();
     void save_account_receipt() const;
     void load_library();
+    void load_plex();
+    void poll_plex_sign_in();
+    void commit_plex_sign_in(const plex::SignIn &done);
+    plex::Server plex_server_for(const SavedSource &source) const;
+    void configure_vod(const SavedSource &source);
+    void consume_plex_check();
     bool save_source_form(std::string_view url, const iptv::XtreamCredentials *account);
     bool commit_source(SavedSource source, bool activate = true);
     static void on_portal_address(const char *text, void *self);
@@ -846,6 +905,15 @@ class Model
     iptv::XtreamCredentials account_form_;
     PortalCredentials portal_, portal_form_, refresh_portal_;
     SavedSource local_source_, local_form_, refresh_local_, http_form_, refresh_http_, guide_http_;
+    plex::Account plex_account_;
+    plex::Identity plex_identity_;
+    plex::Server plex_server_, refresh_plex_;
+    std::string refresh_plex_account_;
+    plex::Check pending_plex_;
+    std::unique_ptr<plex::SignIn> plex_sign_in_;
+    // The connection each Plex source was found at this launch ("" when it was not).
+    std::map<std::int64_t, std::string> plex_bases_;
+    unsigned plex_poll_ms_ = 2000;
     AccountStep account_step_ = AccountStep::none;
     bool account_prompt_pending_ = false;
 

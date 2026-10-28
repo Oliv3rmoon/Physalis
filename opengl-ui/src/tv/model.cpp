@@ -54,6 +54,8 @@ const char *source_name(iptv::SourceKind source)
         return tr("your HDHomeRun tuner");
     case iptv::SourceKind::Tvheadend:
         return tr("your Tvheadend server");
+    case iptv::SourceKind::Plex:
+        return tr("your Plex server");
     case iptv::SourceKind::BuiltIn:
         break;
     }
@@ -198,6 +200,7 @@ std::string Model::cache_path(iptv::SourceKind source) const
         return cache_dir_ + "/prosperotv-source-4.sqlite3";
     case iptv::SourceKind::HDHomeRun:
     case iptv::SourceKind::Tvheadend:
+    case iptv::SourceKind::Plex:
         return cache_dir_ + "/prosperotv-source-" + std::to_string(selected_source_id_) +
                ".sqlite3";
     case iptv::SourceKind::BuiltIn:
@@ -219,6 +222,8 @@ std::uint64_t Model::source_id(iptv::SourceKind source) const
     case iptv::SourceKind::HDHomeRun:
     case iptv::SourceKind::Tvheadend:
         return local_tv_source_id(local_source_);
+    case iptv::SourceKind::Plex:
+        return plex_server_.source_id;
     case iptv::SourceKind::BuiltIn:
         break;
     }
@@ -250,6 +255,8 @@ bool Model::is_set_up(iptv::SourceKind source) const
     case iptv::SourceKind::HDHomeRun:
     case iptv::SourceKind::Tvheadend:
         return !local_source_.url.empty() && valid_source(local_source_);
+    case iptv::SourceKind::Plex:
+        return plex_server_.valid();
     case iptv::SourceKind::BuiltIn:
         break;
     }
@@ -338,6 +345,7 @@ bool Model::open()
 
         (void)iptv::LoadUserState(path("iptv-favorites-v1.bin"), path("iptv-history-v1.bin"),
                                   &user_);
+        load_plex();
         load_library();
         load_cache();
     }
@@ -366,6 +374,15 @@ bool Model::open()
         set_source_text(tr("No channels yet"), tr("Add a playlist or account on the Sources tab."));
         return true;
     }
+    if (active_source_ == iptv::SourceKind::Plex)
+    {
+        // A Plex server has films and shows, no live channels: it is checked once a launch.
+        set_status(tr("Plex"), Level::ready);
+        set_source_text(plex_server_.name, tr("Movies and TV shows are on the On demand tab."));
+        if (refresh_needed())
+            refresh();
+        return true;
+    }
     const bool fresh = !refresh_needed();
     if (catalog_loaded_)
     {
@@ -387,6 +404,7 @@ bool Model::open()
 
 void Model::close()
 {
+    plex_cancel_sign_in();
     cancel_source_check();
     (void)viewing_tick(false);
     cancel_home_play();
@@ -446,6 +464,7 @@ void Model::poll()
         iptv_ime_poll();
     poll_pin();
     continue_account_form();
+    poll_plex_sign_in();
     consume_refresh();
     if ((home_waiting_ || vod_.requested() || search_pending()) && !refreshing())
         stop_guide();
@@ -1119,7 +1138,8 @@ void Model::use_source(iptv::SourceKind source)
 {
     if (library_.ready())
     {
-        if (source == iptv::SourceKind::HDHomeRun || source == iptv::SourceKind::Tvheadend)
+        if (source == iptv::SourceKind::HDHomeRun || source == iptv::SourceKind::Tvheadend ||
+            source == iptv::SourceKind::Plex)
         {
             const auto found =
                 std::find_if(sources_.begin(), sources_.end(), [source](const SavedSource &s)
@@ -1170,6 +1190,11 @@ void Model::edit_source(iptv::SourceKind source)
         return;
     if (source == iptv::SourceKind::BuiltIn)
         return;
+    if (source == iptv::SourceKind::Plex)
+    {
+        plex_sign_in();
+        return;
+    }
     if (refresh_thread_ != nullptr)
     {
         notify(Level::warning, tr("An update is running"),
@@ -1406,6 +1431,10 @@ void Model::refresh()
     refresh_account_ = account ? xtream_ : iptv::XtreamCredentials{};
     refresh_portal_ = active_source_ == iptv::SourceKind::Portal ? portal_ : PortalCredentials{};
     refresh_local_ = local_source_;
+    const bool is_plex = active_source_ == iptv::SourceKind::Plex;
+    refresh_plex_ = is_plex ? plex_server_ : plex::Server{};
+    refresh_plex_account_ = is_plex ? plex_account_.token : std::string();
+    pending_plex_ = {};
     const SourceHealth before = health_[static_cast<unsigned>(active_source_)];
     health_[static_cast<unsigned>(active_source_)] = SourceHealth::refreshing;
 
@@ -1417,9 +1446,13 @@ void Model::refresh()
     pending_account_info_ = {};
     pending_account_message_.clear();
     set_status(tr("Updating"), Level::busy);
-    set_source_text(std::string(tr("Downloading ")) + source_name(active_source_),
-                    catalog_loaded_ ? tr("The saved channels stay available meanwhile.")
-                                    : tr("This can take a minute the first time."));
+    if (is_plex)
+        set_source_text(tr("Looking for the Plex server"),
+                        tr("Movies and TV shows are on the On demand tab."));
+    else
+        set_source_text(std::string(tr("Downloading ")) + source_name(active_source_),
+                        catalog_loaded_ ? tr("The saved channels stay available meanwhile.")
+                                        : tr("This can take a minute the first time."));
     catalog_failed_ = false;
     catalog_error_.clear();
 
@@ -1485,8 +1518,16 @@ void Model::run_refresh()
                     std::memory_order_acquire);
             },
             this};
-        if (refresh_source_ == iptv::SourceKind::HDHomeRun ||
-            refresh_source_ == iptv::SourceKind::Tvheadend)
+        if (refresh_source_ == iptv::SourceKind::Plex)
+        {
+            // No list to download: where the server is now, and its token.
+            pending_plex_ = plex::check_server(plex::platform_transport(&control), plex_identity_,
+                                               refresh_plex_, refresh_plex_account_);
+            pending_fetch_.status =
+                pending_plex_.ok ? iptv::http::Status::ok : iptv::http::Status::request_failed;
+        }
+        else if (refresh_source_ == iptv::SourceKind::HDHomeRun ||
+                 refresh_source_ == iptv::SourceKind::Tvheadend)
         {
             pending_fetch_ =
                 load_local_tv(refresh_local_, &pending_catalog_, &pending_report_, &control);
@@ -1699,6 +1740,19 @@ void Model::consume_refresh()
         return;
     refresh_done_.store(false, std::memory_order_relaxed);
 
+    if (refresh_source_ == iptv::SourceKind::Plex)
+    {
+        consume_plex_check();
+        pending_catalog_ = {};
+        pending_index_.clear();
+        refresh_count_.store(0, std::memory_order_relaxed);
+        if (refresh_queued_)
+        {
+            refresh_queued_ = false;
+            refresh();
+        }
+        return;
+    }
     const bool account = refresh_source_ == iptv::SourceKind::Xtream;
     if (account)
         save_account_receipt();

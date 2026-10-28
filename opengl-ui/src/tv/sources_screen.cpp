@@ -41,6 +41,15 @@ bool needs_setup(const SavedSource *source)
     return source != nullptr && source->url.empty() && source->kind != 0;
 }
 
+// Rows that are not sources: the Plex account, and leaving it.
+constexpr std::int64_t kPlexAccount = -8;
+constexpr std::int64_t kPlexSignOut = -9;
+
+bool plex_source(const SavedSource *source)
+{
+    return source != nullptr && source->kind == 6;
+}
+
 const char *source_title(const SavedSource &source)
 {
     static constexpr const char *defaults[] = {"No source", "Custom playlist",
@@ -77,7 +86,7 @@ void SourcesScreen::sync()
     for (const auto &source : model.saved_sources())
     {
         // The first slot is no source at all: nothing to show or choose.
-        if (source.kind == 0 || source.kind > 5)
+        if (source.kind == 0 || source.kind > 6)
             continue;
         ui::ListItem row;
         row.title = source_title(source);
@@ -125,6 +134,29 @@ void SourcesScreen::sync()
     server.subtitle = tr("HTTP address and optional account");
     rows.push_back(std::move(server));
     ids_.push_back(-5);
+    ui::ListItem plex;
+    if (model.plex_signed_in())
+    {
+        plex.title = model.plex_account_name().empty() ? std::string(tr("Plex account"))
+                                                       : model.plex_account_name();
+        plex.subtitle = tr("Signed in to Plex. Look for new servers");
+        plex.badge = tr("Signed in");
+    }
+    else
+    {
+        plex.title = tr("Add Plex");
+        plex.subtitle = tr("Sign in with a code at plex.tv/link");
+    }
+    rows.push_back(std::move(plex));
+    ids_.push_back(kPlexAccount);
+    if (model.plex_signed_in())
+    {
+        ui::ListItem leave;
+        leave.title = tr("Sign out of Plex");
+        leave.subtitle = tr("Removes this account's servers from Sources");
+        rows.push_back(std::move(leave));
+        ids_.push_back(kPlexSignOut);
+    }
     ui::ListItem usb;
     usb.title = tr("Find playlists on USB");
     usb.subtitle = tr("Top-level .m3u and .m3u8 files on connected drives");
@@ -183,7 +215,8 @@ void SourcesScreen::handle(const InputFrame &input, ui::Feedback &feedback)
         return;
     }
     const auto id = focused_id();
-    if (input.is_pressed(Action::jump_next) && id > 1)
+    const bool is_plex = plex_source(model.saved_source(id));
+    if (input.is_pressed(Action::jump_next) && id > 1 && !is_plex)
     {
         if (!model.require_parent() || model.refreshing())
             return;
@@ -209,12 +242,12 @@ void SourcesScreen::handle(const InputFrame &input, ui::Feedback &feedback)
         user_agents_.enter();
         return;
     }
-    if (input.is_pressed(Action::jump_prev) && id > 0)
+    if (input.is_pressed(Action::jump_prev) && id > 0 && !is_plex)
     {
         model.edit_guide_url(id);
         return;
     }
-    if (input.is_pressed(Action::north) && id > 1)
+    if (input.is_pressed(Action::north) && id > 1 && !is_plex)
     {
         model.edit_saved_source(id);
         return;
@@ -252,6 +285,13 @@ void SourcesScreen::handle(const InputFrame &input, ui::Feedback &feedback)
             const auto index = static_cast<std::size_t>(-100 - id);
             if (index < usb_files_.size())
                 model.import_usb_playlist(usb_files_[index]);
+        }
+        else if (id == kPlexAccount)
+            model.plex_sign_in();
+        else if (id == kPlexSignOut)
+        {
+            (void)model.plex_sign_out();
+            sync();
         }
         else if (id < 0)
             model.add_source(static_cast<iptv::SourceKind>(-id));
@@ -304,9 +344,12 @@ void SourcesScreen::draw(ui::Canvas &canvas) const
     const float left = kPanel.x + 36, width = kPanel.w - 72;
     const auto id = focused_id();
     const auto *source = model.saved_source(id);
-    const std::string title = id == -7            ? tr("Check active source")
-                              : source != nullptr ? source_title(*source)
-                                                  : tr("Add a source");
+    const std::string title = id == -7             ? tr("Check active source")
+                              : source != nullptr  ? source_title(*source)
+                              : id == kPlexSignOut ? tr("Sign out of Plex")
+                              : id == kPlexAccount && model.plex_signed_in() ? tr("Plex account")
+                              : id == kPlexAccount                           ? tr("Add Plex")
+                                                                             : tr("Add a source");
     ui::text(draw, fonts.display, fonts.display.font->fit(title, 36, width), left, 315, 36,
              theme.text);
     if (id == -7)
@@ -319,6 +362,27 @@ void SourcesScreen::draw(ui::Canvas &canvas) const
             left, 375, 26, width, 38, theme.text_muted, 12);
         ui::paragraph(draw, fonts.regular, model.source_check_status(), left, 700, 24, width, 34,
                       theme.text, 5);
+        return;
+    }
+    if (source == nullptr && (id == kPlexAccount || id == kPlexSignOut))
+    {
+        if (model.plex_signed_in() && !model.plex_account_name().empty())
+            ui::text(draw, fonts.semibold,
+                     fonts.semibold.font->fit(tr("Signed in as ") + model.plex_account_name(), 26,
+                                              width),
+                     left, 375, 26, theme.text);
+        ui::paragraph(
+            draw, fonts.regular,
+            id == kPlexSignOut
+                ? tr("Signing out forgets the Plex account on this console and removes its "
+                     "servers from Sources. Sign in again at any time.")
+            : model.plex_signed_in()
+                ? tr("Looks for servers shared with your account since you signed in, and adds "
+                     "them to Sources.")
+                : tr("Sign in with your Plex account: a code appears to enter at plex.tv/link "
+                     "on a phone or computer. Your Plex servers then appear here, and their "
+                     "movies and TV shows under On demand."),
+            left, model.plex_signed_in() ? 425 : 375, 26, width, 38, theme.text_muted, 10);
         return;
     }
     if (source == nullptr && (id == -6 || id <= -100))
@@ -351,7 +415,19 @@ void SourcesScreen::draw(ui::Canvas &canvas) const
     ui::text(draw, fonts.semibold,
              tr("Refresh: ") + std::string(tr(schedule_name(source->schedule))), left, 510, 26,
              theme.text);
-    if (source->kind == 2)
+    if (source->kind == 6)
+    {
+        if (!source->username.empty())
+            ui::text(draw, fonts.regular,
+                     fonts.regular.font->fit(tr("Plex account: ") + source->username, 22, width),
+                     left, 563, 22, theme.text_muted);
+        ui::paragraph(draw, fonts.regular,
+                      tr("Plex movies and TV shows are on the On demand tab. Films play as they "
+                         "are when the PS5 can decode them; others play through the server's "
+                         "transcoder."),
+                      left, 607, 24, width, 34, theme.text_muted, 4);
+    }
+    else if (source->kind == 2)
     {
         const auto &info = source->account;
         const auto line = [&](const std::string &text, float y)
@@ -391,7 +467,8 @@ void SourcesScreen::draw(ui::Canvas &canvas) const
             ui::text(draw, fonts.semibold, text, left, y, 26, theme.text);
             y += 32;
         };
-        count(group_digits(counts.channels) + tr(" channels"));
+        if (source->kind != 6)
+            count(group_digits(counts.channels) + tr(" channels"));
         if (counts.movies)
             count(group_digits(*counts.movies) + tr(" movies"));
         if (counts.shows)
@@ -429,17 +506,20 @@ int SourcesScreen::hints(ui::Hint *out, int capacity) const
     add({ui::Button::cross,
          focused_id() == -7
              ? tr(shared_.model.checking_source() ? "Cancel source check" : "Check active source")
+         : focused_id() == kPlexSignOut ? tr("Sign out")
+         : focused_id() == kPlexAccount
+             ? tr(shared_.model.plex_signed_in() ? "Find servers" : "Sign in")
          : focused_id() < 0                                      ? tr("Add")
          : needs_setup(shared_.model.saved_source(focused_id())) ? tr("Set up")
                                                                  : tr("Use source")});
-    if (focused_id() > 1)
+    const bool is_plex = plex_source(shared_.model.saved_source(focused_id()));
+    if (focused_id() > 1 && !is_plex)
         add({ui::Button::triangle, tr("Edit")});
     if (focused_id() > 0)
-    {
         add({ui::Button::square, tr("Refresh schedule")});
+    if (focused_id() > 0 && !is_plex)
         add({ui::Button::l2, tr("XMLTV guide")});
-    }
-    if (focused_id() > 1)
+    if (focused_id() > 1 && !is_plex)
         add({ui::Button::r2, tr("HTTP settings")});
     return count;
 }

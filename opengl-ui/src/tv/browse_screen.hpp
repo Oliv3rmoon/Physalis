@@ -22,11 +22,12 @@ class BrowseScreen
     enum class Result
     {
         none,
-        play,     // a channel was queued in the model
-        selected, // a channel was chosen for multiview; no foreground playback
-        search,   // open the search sheet
-        go_live,  // the favorites list is empty: go and find some
-        sources,  // there is no source yet: go and add one
+        play,      // a channel was queued in the model
+        selected,  // a channel was chosen for multiview; no foreground playback
+        search,    // open the search sheet
+        go_live,   // the favorites list is empty: go and find some
+        sources,   // there is no source yet: go and add one
+        on_demand, // the source has films and shows only (Plex): go to them
     };
 
     explicit BrowseScreen(Shared &shared);

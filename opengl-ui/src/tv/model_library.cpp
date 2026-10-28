@@ -73,18 +73,18 @@ void Model::load_library()
     }
     sources_ = library_.sources();
     const auto saved = library_.selected_source();
-    if (saved != 0 && saved_source(saved) != nullptr && saved_source(saved)->kind <= 5)
+    if (saved != 0 && saved_source(saved) != nullptr && saved_source(saved)->kind <= 6)
         selected_source_id_ = saved;
     const auto last = library_.last_channel();
     if (settings.resume_last && last.first != 0 && saved_source(last.first) != nullptr &&
-        saved_source(last.first)->kind <= 5)
+        saved_source(last.first)->kind <= 6)
         selected_source_id_ = last.first;
     // With no source chosen, or the third-party list an earlier version chose,
     // the first source set up is used instead.
     if (const auto *chosen = saved_source(selected_source_id_);
         chosen == nullptr || chosen->kind == 0)
         for (const auto &source : sources_)
-            if (source.kind >= 1 && source.kind <= 5 && !source.url.empty())
+            if (source.kind >= 1 && source.kind <= 6 && !source.url.empty())
             {
                 selected_source_id_ = source.id;
                 break;
@@ -121,13 +121,10 @@ void Model::select_source_record(const SavedSource &source)
     if (source.kind == 3)
         portal_ = {source.url, source.mac, source.user_agent, source.referrer,
                    source.extra_headers};
-    if (source.kind >= 4)
+    if (source.kind == 4 || source.kind == 5)
         local_source_ = source;
-    vod_.configure(source.kind == 2 ? xtream_ : iptv::XtreamCredentials{},
-                   cache_path(active_source_), schedule_, source.user_agent, source.referrer,
-                   source.extra_headers);
-    if (source.kind == 1)
-        vod_.configure_playlist(&catalog_);
+    plex_server_ = source.kind == 6 ? plex_server_for(source) : plex::Server{};
+    configure_vod(source);
     refresh_counts();
     if (changed)
     {
@@ -146,6 +143,9 @@ void Model::select_source_record(const SavedSource &source)
 
 bool Model::refresh_needed() const
 {
+    // A Plex server is looked for once a launch; its lists keep their own schedule.
+    if (active_source_ == iptv::SourceKind::Plex)
+        return !plex_bases_.contains(selected_source_id_);
     if (playlist_cache_needs_refresh_)
         return true;
     if (catalog_loaded_ && schedule_ == RefreshSchedule::manual)
@@ -300,7 +300,7 @@ void Model::use_saved_source(std::int64_t id)
         return;
     }
     const auto *source = saved_source(id);
-    if (source == nullptr || source->kind == 0 || source->kind > 5)
+    if (source == nullptr || source->kind == 0 || source->kind > 6)
         return;
     if (source->url.empty())
     {
@@ -321,17 +321,25 @@ void Model::use_saved_source(std::int64_t id)
     }
     if (id <= 3)
         (void)iptv::SaveActiveSource(path("iptv-active-source-v1.txt"), active_source_);
-    set_source_text(source->name, catalog_loaded_ ? tr("Showing the saved channel list.")
-                                                  : tr("Downloading the first copy."));
+    const bool is_plex = source->kind == 6;
+    set_source_text(source->name, is_plex ? tr("Movies and TV shows are on the On demand tab.")
+                                  : catalog_loaded_ ? tr("Showing the saved channel list.")
+                                                    : tr("Downloading the first copy."));
     if (refresh_needed())
         refresh();
     else
-        set_status(tr("Saved copy"), Level::ready);
+        set_status(is_plex ? tr("Plex") : tr("Saved copy"), Level::ready);
     warn_account_expiry();
 }
 
 void Model::add_source(iptv::SourceKind kind)
 {
+    // Plex signs in with a code on the screen: no keyboard.
+    if (kind == iptv::SourceKind::Plex)
+    {
+        plex_sign_in();
+        return;
+    }
     if (!require_parent() || iptv_ime_busy())
         return;
     if (kind == iptv::SourceKind::BuiltIn || refreshing() || !keyboard_ready_)
@@ -358,6 +366,7 @@ void Model::edit_saved_source(std::int64_t id)
     if (!require_parent() || iptv_ime_busy())
         return;
     const auto *source = saved_source(id);
+    // A Plex server (kind 6) has no form to edit.
     if (source == nullptr || source->kind == 0 || source->kind > 5 || refreshing() ||
         !keyboard_ready_)
         return;
@@ -373,7 +382,7 @@ void Model::edit_saved_source(std::int64_t id)
         account_form_ = {copy.url, copy.username, copy.password};
     if (copy.kind == 3)
         portal_form_ = {copy.url, copy.mac};
-    if (copy.kind >= 4)
+    if (copy.kind == 4 || copy.kind == 5)
         local_form_ = copy;
 }
 
@@ -553,12 +562,7 @@ bool Model::set_schedule(std::int64_t id, RefreshSchedule schedule)
     if (id == selected_source_id_)
     {
         schedule_ = schedule;
-        vod_.configure(active_source_ == iptv::SourceKind::Xtream ? xtream_
-                                                                  : iptv::XtreamCredentials{},
-                       cache_path(active_source_), schedule_, next.user_agent, next.referrer,
-                       next.extra_headers);
-        if (active_source_ == iptv::SourceKind::Custom)
-            vod_.configure_playlist(&catalog_);
+        configure_vod(next);
     }
     ++revision_;
     return true;
@@ -626,6 +630,21 @@ bool Model::queue_vod(const iptv::ChannelView &item, const std::string &series, 
     play_request_.on_demand = true;
     play_request_.start_position_us = library_.playback_progress(item.id).first;
     play_request_.series_id = series;
+    if (active_source_ == iptv::SourceKind::Plex && plex_server_.valid() &&
+        item.source_id == plex_server_.source_id && !item.tvg_id.empty())
+    {
+        // The console asks the server what to play first (tv/plex.hpp, PlayJob): the file as
+        // it is, or the transcoder. The token goes with each request to that server only.
+        auto &title = play_request_.plex;
+        title.server = plex_server_;
+        title.identity = plex_identity_;
+        title.rating_key = std::string(item.tvg_id);
+        title.session = plex::new_session_id();
+        play_request_.user_agent.clear();
+        play_request_.referrer.clear();
+        play_request_.extra_headers = plex::player_headers(title);
+        play_request_.credential_origin = plex_server_.base;
+    }
     play_requested_ = true;
     return true;
 }

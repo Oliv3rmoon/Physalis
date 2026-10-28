@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "tv/library.hpp"
+#include "tv/plex.hpp"
 #include "tv/usb_playlist.hpp"
 
 #include "iptv_catalog.h"
@@ -139,7 +140,7 @@ int account_expiry_notice(const AccountInfo &info, std::uint64_t now)
 
 bool valid_source(const SavedSource &source)
 {
-    if (source.id < 0 || source.kind < 0 || source.kind > 5 || !valid_text(source.name, 128) ||
+    if (source.id < 0 || source.kind < 0 || source.kind > 6 || !valid_text(source.name, 128) ||
         source.schedule < RefreshSchedule::daily || source.schedule > RefreshSchedule::manual)
         return false;
     std::string referer_url;
@@ -161,6 +162,10 @@ bool valid_source(const SavedSource &source)
         return false;
     if (source.kind == 2)
         return iptv::ValidateXtreamCredentials({source.url, source.username, source.password});
+    if (source.kind == 6)
+        return (source.username.empty() || valid_text(source.username, 128)) &&
+               plex::valid_token(source.password) && plex::valid_machine(source.mac) &&
+               source.extra_headers.empty() && source.user_agent.empty() && source.referrer.empty();
     if (source.kind == 5)
         return (source.username.empty() ? source.password.empty()
                                         : valid_text(source.username, 255) &&

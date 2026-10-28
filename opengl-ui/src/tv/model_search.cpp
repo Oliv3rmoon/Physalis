@@ -113,14 +113,14 @@ void Model::refresh_counts()
         counts_.shows = shows;
         return;
     }
-    // Xtream lists are counted from their saved files, so a long list is never read for it.
+    // Xtream and Plex lists are counted from their saved files, so a long list is never read.
     const auto saved = [&](VodKind kind) -> std::optional<unsigned>
     {
         iptv::StoreReport report;
         std::uint64_t source = 0;
         if (iptv::InspectCatalog(vod_.cache_file(kind), &report, &source) !=
                 iptv::StoreStatus::ok ||
-            report.catalog_version < 5 || source != iptv::XtreamSourceId(xtream_))
+            report.catalog_version < 5 || source != vod_.fingerprint())
             return std::nullopt;
         return static_cast<unsigned>(report.records);
     };
