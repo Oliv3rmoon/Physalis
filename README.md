@@ -18,7 +18,7 @@
 Nightshade TV is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. It is
 [ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV) 01.000.090, the native IPTV client for
 PS5 homebrew, with the look of [Nightshade](https://github.com/Oliv3rmoon/Nightshade) and updates
-from this repository. The current release is **01.001.000**; what changed is in the
+from this repository. The current release is **01.002.000**; what changed is in the
 [changelog](docs/CHANGELOG.md).
 
 ## What you get

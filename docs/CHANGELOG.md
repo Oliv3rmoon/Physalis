@@ -4,6 +4,49 @@ What changed in each release of Nightshade TV, newest first. A release's notes o
 `docs/releases/<version>.md`. What changed in ProsperoTV before Nightshade TV is in the earlier
 files there.
 
+## Nightshade TV v1.002.000: Plex
+
+Your Plex libraries beside your playlists and accounts. What changed:
+
+- **Plex as a source.** In **Sources**, **Add Plex** shows a four-character code and a QR code that
+  opens [plex.tv/link](https://plex.tv/link); enter the code on a phone or computer signed in to
+  Plex, and every server the account reaches, its own and those shared with it, becomes a source.
+  Sources then shows the account's name, **Find servers** and **Sign out**.
+- **Movies and TV shows from Plex.** A server's movie libraries are its Movies and its show
+  libraries its TV shows in **On demand**, each library a category, with seasons, episodes,
+  posters and details, in the screens the Xtream lists use, with search, Home, Continue and the
+  parental rules. Live TV says a Plex server has no live channels and opens On demand.
+- **Playing as it is, or through the transcoder.** A file the PS5 player decodes (MP4, MOV,
+  Matroska, WebM or MPEG-TS; H.264 8-bit, HEVC or VP9 up to 4K; AAC, AC-3, E-AC-3, MP2, MP3 or DTS)
+  plays as it is; anything else through the server's universal transcoder over HLS, which copies
+  the video when it can. Playback starts where the title was left on any device (the transcoder
+  starts there too), tells the server where it is every ten seconds and when it stops, in the
+  background so the menu comes back at once, and marks the title watched when it plays to its end.
+- **Connections.** The local address at home, the remote one away, Plex's relay last, https first,
+  all asked at once and checked by the server's own `/identity`, once per launch. Plain http only
+  on your own network, since over http any box could answer for the server; `*.plex.direct` names
+  dialled at the address plex.tv gives, so https works behind a router that blocks them. Until a
+  server has answered nothing is sent to it, not even a poster; Sources says **Can't be
+  reached**, its saved lists stay, and signing in saves only the servers that answered.
+- **The tokens** are kept as Xtream passwords are, and travel in `X-Plex-Token` headers only, to
+  their own server, never in an address. The diagnostic log never contains them or the account's
+  name. Settings backups leave the Plex servers out, and signing out overwrites their rows.
+- **Every new text** is in all nine languages.
+
+The Plex API is used as [PlxNative](https://github.com/GLinnik21/plx-native) by GLinnik21
+(GPL-3.0), a fast native Plex client for LG webOS, documents and uses it; its notes and code were the
+reference for the sign-in, the connection ranking, the transcoder's parameters and the timeline. No
+PlxNative code is included. Limits are in the README's [Plex](../README.md#plex) section (no Plex
+Home profiles, no Plex live TV, music or photos, no transcoder quality choice).
+
+Built and checked by the host tests, against recorded answers from plex.tv and a server; not yet
+run on a console with a real Plex server.
+
+### Install
+
+Copy this release's `PPSA99003` folder (from `PPSA99003.zip`) over your current one, or choose
+**Update now** when Nightshade TV 01.001.000 offers it. Your sources, favorites and settings stay.
+
 ## Nightshade TV v1.001.000: the first Nightshade TV, based on ProsperoTV 01.000.090
 
 Nightshade TV is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded: ProsperoTV 01.000.090
