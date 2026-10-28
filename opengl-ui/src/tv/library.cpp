@@ -491,6 +491,18 @@ bool Library::remove_source(std::int64_t id)
     return query.integer(1, id) && query.done();
 }
 
+bool Library::remove_sources_securely(int kind)
+{
+    if (!db_ || kind <= 0)
+        return false;
+    Statement query(db_, "DELETE FROM sources WHERE kind=?1 AND id>4");
+    const bool removed =
+        sqlite3_exec(db_, "PRAGMA secure_delete=ON", nullptr, nullptr, nullptr) == SQLITE_OK &&
+        query.integer(1, kind) && query.done();
+    (void)sqlite3_exec(db_, "PRAGMA secure_delete=OFF", nullptr, nullptr, nullptr);
+    return removed;
+}
+
 std::int64_t Library::selected_source() const
 {
     Statement query(db_, "SELECT source FROM selection WHERE singleton=1");

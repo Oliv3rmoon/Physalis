@@ -94,6 +94,9 @@ class Library
     std::vector<SavedSource> sources() const;
     bool save_source(SavedSource *source);
     bool remove_source(std::int64_t id);
+    // Every source of a kind, its rows overwritten in the file (secure_delete) rather than left
+    // in free pages: what signing out of Plex leaves behind holds no token.
+    bool remove_sources_securely(int kind);
     bool save_account_info(std::int64_t source, const AccountInfo &info);
     std::string guide_url(std::int64_t source) const;
     std::map<std::string, std::string> guide_mapping(std::int64_t source) const;

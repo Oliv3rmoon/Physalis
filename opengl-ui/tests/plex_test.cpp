@@ -3,10 +3,13 @@
 // Copyright (C) 2026 Oliv3rmoon
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "tv/plex.hpp"
+#include "tv/backup.hpp"
 #include "tv/diag.hpp"
+#include "tv/library.hpp"
 #include "tv/model.hpp"
 #include "tv/vod.hpp"
 #include "host_platform.hpp"
+#include "iptv_store.h"
 
 #include <gtest/gtest.h>
 
@@ -16,6 +19,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <string>
@@ -111,6 +115,7 @@ plex::Server server(std::string base = kLocal)
 {
     plex::Server s;
     s.base = std::move(base);
+    s.pin = plex::pin_for(s.base); // as a server found answering carries it
     s.token = kServerToken;
     s.machine = kMachine;
     s.name = "Living Room";
@@ -206,6 +211,7 @@ TEST(PlexPin, PendingThenAuthorizedThenServers)
     ASSERT_EQ(sign_in.servers().size(), 2u); // the player is left out
     EXPECT_EQ(sign_in.servers()[0].resource.machine, kMachine);
     EXPECT_EQ(sign_in.servers()[0].base, kLocal);
+    EXPECT_EQ(sign_in.servers()[0].pin, "192-168-1-5.aaaabbbb.plex.direct:32400:192.168.1.5");
     EXPECT_EQ(sign_in.servers()[0].resource.token, kServerToken);
     EXPECT_EQ(sign_in.servers()[1].base, "https://198-51-100-7.eeeeffff.plex.direct:32400");
 
@@ -305,6 +311,14 @@ TEST(PlexAccount, KeepsTheClientIdAcrossSignOutAndRefusesBrokenFiles)
 
 // ---- servers ------------------------------------------------------------------------------
 
+std::vector<std::string> urls(const std::vector<plex::Candidate> &list)
+{
+    std::vector<std::string> out;
+    for (const auto &candidate : list)
+        out.push_back(candidate.url);
+    return out;
+}
+
 TEST(PlexServers, ResourcesParseAndConnectionsRankLocalRemoteRelay)
 {
     std::vector<plex::Resource> list;
@@ -316,68 +330,144 @@ TEST(PlexServers, ResourcesParseAndConnectionsRankLocalRemoteRelay)
     EXPECT_FALSE(list[1].owned);
     EXPECT_EQ(list[1].token, kSharedToken);
 
-    // Local first (https before http, IPv4 before IPv6), then remote, then relay.
+    // At home (plex.tv says the server stands behind our router): local first, https before
+    // http, IPv4 before IPv6, then remote, then relay; each plex.direct name pinned to the
+    // address plex.tv gave beside it.
     EXPECT_EQ(plex::candidates(list[0]),
+              (std::vector<plex::Candidate>{
+                  {kLocal, "192-168-1-5.aaaabbbb.plex.direct:32400:192.168.1.5"},
+                  {"https://fd00--5.aaaabbbb.plex.direct:32400",
+                   "fd00--5.aaaabbbb.plex.direct:32400:[fd00::5]"},
+                  {"http://192.168.1.5:32400", ""},
+                  {"http://[fd00::5]:32400", ""},
+                  {"https://203-0-113-9.aaaabbbb.plex.direct:32400",
+                   "203-0-113-9.aaaabbbb.plex.direct:32400:203.0.113.9"},
+                  {"https://198-51-100-4.aaaabbbb.plex.direct:8443",
+                   "198-51-100-4.aaaabbbb.plex.direct:8443:198.51.100.4"}}));
+    // Away from home an answer over plain http proves nothing: https only, owned or not.
+    auto away = list[0];
+    away.public_address_matches = false;
+    EXPECT_EQ(urls(plex::candidates(away)),
               (std::vector<std::string>{kLocal, "https://fd00--5.aaaabbbb.plex.direct:32400",
-                                        "http://192.168.1.5:32400", "http://[fd00::5]:32400",
                                         "https://203-0-113-9.aaaabbbb.plex.direct:32400",
                                         "https://198-51-100-4.aaaabbbb.plex.direct:8443"}));
-    // A shared server's LAN is its owner's: only the address that proves the server is tried.
-    EXPECT_EQ(plex::candidates(list[1]),
+    // A shared server's LAN is its owner's: no http address at all, even one it advertises.
+    auto shared = list[1];
+    shared.connections.push_back(
+        {"http", "172.20.0.2", "http://172.20.0.2:32400", 32400, true, false, false});
+    EXPECT_EQ(urls(plex::candidates(shared)),
               (std::vector<std::string>{"https://172-20-0-2.eeeeffff.plex.direct:32400",
                                         "https://198-51-100-7.eeeeffff.plex.direct:32400"}));
+    // The owner requires https: none over http, even at home.
     auto strict = list[0];
     strict.https_required = true;
-    for (const auto &url : plex::candidates(strict))
-        EXPECT_TRUE(url.starts_with("https://")) << url;
+    for (const auto &candidate : plex::candidates(strict))
+        EXPECT_TRUE(candidate.url.starts_with("https://")) << candidate.url;
+    // A remote address over plain http is never tried, nor a relay over http.
+    auto plain = list[0];
+    plain.connections = {
+        {"http", "203.0.113.9", "http://203.0.113.9:32400", 32400, false, false, false},
+        {"http", "198.51.100.4", "http://198.51.100.4:8443", 8443, true, true, false}};
+    EXPECT_TRUE(plex::candidates(plain).empty());
 
     EXPECT_FALSE(plex::parse_resources("{\"error\":1}", &list));
     EXPECT_TRUE(list.empty());
 }
 
-TEST(PlexServers, TheFirstCandidateThatNamesTheServerIsChosen)
+TEST(PlexServers, PlexDirectNamesArePinnedToTheirAddress)
+{
+    EXPECT_EQ(plex::pin_for("https://192-168-1-5.abc.plex.direct:32400"),
+              "192-168-1-5.abc.plex.direct:32400:192.168.1.5");
+    EXPECT_EQ(plex::pin_for("https://192-168-1-5.abc.plex.direct"),
+              "192-168-1-5.abc.plex.direct:443:192.168.1.5");
+    EXPECT_EQ(plex::pin_for("https://x.abc.plex.direct:32400", "10.0.0.2"),
+              "x.abc.plex.direct:32400:10.0.0.2");
+    EXPECT_TRUE(plex::pin_for("https://x.abc.plex.direct:32400").empty()); // no address in it
+    EXPECT_TRUE(plex::pin_for("http://192-168-1-5.abc.plex.direct:32400").empty());
+    EXPECT_TRUE(plex::pin_for("https://example.com:443", "1.2.3.4").empty());
+    EXPECT_TRUE(plex::pin_for("https://300-1-1-1.abc.plex.direct:1").empty());
+    EXPECT_TRUE(plex::pin_for("https://1-2-3-4.abc.plex.direct:32400", "1.2.3.4\r\nX: y").empty());
+}
+
+TEST(PlexServers, AllCandidatesAreAskedAtOnceAndTheBestRankedServerIsChosen)
 {
     std::vector<plex::Resource> list;
     ASSERT_TRUE(plex::parse_resources(kResources, &list));
     FakePlex fake;
-    // At home a stranger's box answers on the LAN address; the public one is the server.
+    // At home a stranger's box answers on the LAN address; the public one is the server, and so
+    // is its relay: the better-ranked of the two is chosen.
     fake.on("GET", std::string(kLocal) + "/identity", 200, identity_json("someone-else-123"));
     fake.on("GET", "http://192.168.1.5:32400/identity", 500, "");
     fake.on("GET", "https://203-0-113-9.aaaabbbb.plex.direct:32400/identity", 200,
             identity_json(kMachine));
-    EXPECT_EQ(plex::choose_connection(fake.transport(), identity(), list[0]),
-              "https://203-0-113-9.aaaabbbb.plex.direct:32400");
-    // Tried in order, and not past the one that answered.
-    const auto asked = fake.requests();
-    ASSERT_EQ(asked.size(), 5u);
-    EXPECT_EQ(asked[0].url, std::string(kLocal) + "/identity");
-    EXPECT_EQ(asked[4].url, "https://203-0-113-9.aaaabbbb.plex.direct:32400/identity");
-    EXPECT_LE(asked[0].timeout_ms, 4000u);
+    fake.on("GET", "https://198-51-100-4.aaaabbbb.plex.direct:8443/identity", 200,
+            identity_json(kMachine));
+    const auto reached = plex::choose_connection(fake.transport(), identity(), list[0]);
+    EXPECT_EQ(reached.base, "https://203-0-113-9.aaaabbbb.plex.direct:32400");
+    EXPECT_EQ(reached.pin, "203-0-113-9.aaaabbbb.plex.direct:32400:203.0.113.9");
+    const auto asked = fake.to("/identity");
+    ASSERT_EQ(asked.size(), 6u); // every candidate, at once
+    for (const auto &request : asked)
+    {
+        EXPECT_LE(request.timeout_ms, 4000u);
+        EXPECT_FALSE(has_header_named(request, "X-Plex-Token"));
+        if (request.url.starts_with("https://"))
+            EXPECT_EQ(request.resolve.size(), 1u) << request.url;
+        else
+            EXPECT_TRUE(request.resolve.empty()) << request.url;
+    }
+
+    // Slow boxes cost their own time, not the sum of everyone's.
+    FakePlex slow;
+    for (const auto &candidate : plex::candidates(list[0]))
+        slow.on("GET", candidate.url + "/identity",
+                [machine = candidate.url == kLocal ? std::string(kMachine)
+                                                   : std::string("other")](const plex::Request &)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    return plex::Reply{200, identity_json(machine)};
+                });
+    const auto started = std::chrono::steady_clock::now();
+    EXPECT_EQ(plex::choose_connection(slow.transport(), identity(), list[0]).base, kLocal);
+    EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(900));
 
     FakePlex none;
-    EXPECT_TRUE(plex::choose_connection(none.transport(), identity(), list[0]).empty());
+    EXPECT_TRUE(plex::choose_connection(none.transport(), identity(), list[0]).base.empty());
 }
 
-TEST(PlexServers, ACheckUsesTheAccountAndFallsBackToTheSavedAddress)
+TEST(PlexServers, ACheckUsesTheAccountAndAsksTheSavedAddressOnlyOverHttps)
 {
     FakePlex fake;
     fake.on("GET", "https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1", 200,
             kResources);
     fake.on("GET", "https://203-0-113-9.aaaabbbb.plex.direct:32400/identity", 200,
             identity_json(kMachine));
-    auto saved = server("http://192.168.1.5:32400");
+    auto saved = server(kLocal);
     saved.token = "old-token";
     auto check = plex::check_server(fake.transport(), identity(), saved, kAccountToken);
     ASSERT_TRUE(check.ok) << check.error;
     EXPECT_EQ(check.base, "https://203-0-113-9.aaaabbbb.plex.direct:32400");
+    EXPECT_EQ(check.pin, "203-0-113-9.aaaabbbb.plex.direct:32400:203.0.113.9");
     EXPECT_EQ(check.token, kServerToken);
 
+    // Without plex.tv the saved https address is asked, at the address its name spells.
     FakePlex offline_account;
-    offline_account.on("GET", "http://192.168.1.5:32400/identity", 200, identity_json(kMachine));
+    offline_account.on("GET", std::string(kLocal) + "/identity", 200, identity_json(kMachine));
     check = plex::check_server(offline_account.transport(), identity(), saved, kAccountToken);
     ASSERT_TRUE(check.ok);
-    EXPECT_EQ(check.base, "http://192.168.1.5:32400");
+    EXPECT_EQ(check.base, kLocal);
+    EXPECT_EQ(check.pin, "192-168-1-5.aaaabbbb.plex.direct:32400:192.168.1.5");
     EXPECT_EQ(check.token, "old-token");
+    EXPECT_EQ(offline_account.to("/identity").at(0).resolve,
+              (std::vector<std::string>{"192-168-1-5.aaaabbbb.plex.direct:32400:192.168.1.5"}));
+
+    // A saved plain http address never: any box could answer for the server there.
+    FakePlex lan;
+    lan.on("GET", "http://192.168.1.5:32400/identity", 200, identity_json(kMachine));
+    check = plex::check_server(lan.transport(), identity(), server("http://192.168.1.5:32400"),
+                               kAccountToken);
+    EXPECT_FALSE(check.ok);
+    EXPECT_TRUE(lan.to("/identity").empty());
 
     FakePlex gone;
     gone.on("GET", "https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1", 200, "[]");
@@ -614,6 +704,11 @@ TEST(PlexPlayback, DirectPlayOnlyWhatThePlayerDecodes)
     EXPECT_FALSE(plex::choose_media(item).direct);
 }
 
+std::string page_of_three()
+{
+    return page({movie(1, "A", kMkv), movie(2, "B", kMkv), movie(3, "C", kMkv)}, 3);
+}
+
 std::string metadata_reply(const std::string &media_json)
 {
     return page({movie(101, "Film", media_json)}, 1);
@@ -624,8 +719,11 @@ TEST(PlexPlayback, AFileThatPlaysAsItIsComesFirstAndResumesWhereItWasLeft)
     FakePlex fake;
     fake.on("GET", std::string(kLocal) + "/library/metadata/101", 200, metadata_reply(kMkv));
     plex::Playback playback{server(), identity(), "101", "session-1"};
-    // The transcoder's session is registered (its decision) before anything plays.
-    fake.on("GET", plex::decision_url(playback), 200, R"({"MediaContainer":{"size":1}})");
+    // The transcoder's session is registered (its decision) before anything plays, starting
+    // where the title is resumed.
+    auto expected = playback;
+    expected.offset_ms = 60000;
+    fake.on("GET", plex::decision_url(expected), 200, R"({"MediaContainer":{"size":1}})");
     plex::Prepared prepared;
     ASSERT_TRUE(plex::prepare(fake.transport(), &playback, 5000000, &prepared)) << prepared.error;
     EXPECT_FALSE(prepared.transcode);
@@ -633,8 +731,37 @@ TEST(PlexPlayback, AFileThatPlaysAsItIsComesFirstAndResumesWhereItWasLeft)
     EXPECT_EQ(prepared.urls[0], std::string(kLocal) + "/library/parts/11/1700000000/file.mkv");
     EXPECT_TRUE(prepared.urls[1].starts_with(std::string(kLocal) +
                                              "/video/:/transcode/universal/start.m3u8?"));
+    EXPECT_NE(prepared.urls[1].find("&offset=60&"), std::string::npos) << prepared.urls[1];
     EXPECT_EQ(prepared.start_us, 60000000u); // Plex's viewOffset wins over this console's
-    ASSERT_EQ(fake.to("/transcode/universal/decision").size(), 1u);
+    const auto decisions = fake.to("/transcode/universal/decision");
+    ASSERT_EQ(decisions.size(), 1u);
+    EXPECT_EQ(decisions[0].url, plex::decision_url(expected));
+    EXPECT_EQ(decisions[0].resolve,
+              (std::vector<std::string>{"192-168-1-5.aaaabbbb.plex.direct:32400:192.168.1.5"}));
+}
+
+TEST(PlexPlayback, TimesTooLargeToBeTimesAreNotResumedFrom)
+{
+    for (const char *times : {R"("viewOffset":99999999999999999,"duration":5400000)",
+                              R"("viewOffset":99999999999999998,"duration":99999999999999999)"})
+    {
+        FakePlex fake;
+        fake.on(
+            "GET", std::string(kLocal) + "/library/metadata/101", 200,
+            std::string(
+                R"({"MediaContainer":{"size":1,"Metadata":[{"ratingKey":"101","type":"movie","title":"Film",)") +
+                times + R"(,"Media":[)" + kMkv + "]}]}}");
+        plex::Playback playback{server(), identity(), "101", "session-9"};
+        plex::Prepared prepared;
+        ASSERT_TRUE(plex::prepare(fake.transport(), &playback, 7000000, &prepared));
+        EXPECT_EQ(prepared.start_us, 7000000u) << times; // this console's own point instead
+    }
+    // A page is no longer than asked for.
+    plex::Page page;
+    ASSERT_TRUE(plex::parse_items(page_of_three(), &page, 2));
+    EXPECT_EQ(page.items.size(), 2u);
+    ASSERT_TRUE(plex::parse_items(page_of_three(), &page));
+    EXPECT_EQ(page.items.size(), 3u);
 }
 
 TEST(PlexPlayback, OtherFilesGoThroughTheHlsTranscoder)
@@ -733,7 +860,10 @@ TEST(PlexTimeline, ReportsWhilePlayingAndWhenItStops)
     const auto before = reporter.reports();
     for (int i = 0; i < 500 && reporter.reports() < before + 2; ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    reporter.finish(5000000000u, 5400000000u, true);
+    const auto done = reporter.finish(5000000000u, 5400000000u, true);
+    for (int i = 0; i < 2000 && !done->load(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    ASSERT_TRUE(done->load());
 
     std::vector<std::map<std::string, std::string>> reports;
     for (const auto &request : fake.to("/:/timeline"))
@@ -768,7 +898,14 @@ TEST(PlexTimeline, ReportsWhilePlayingAndWhenItStops)
               std::string(kLocal) + "/video/:/transcode/universal/stop?session=session-3");
 }
 
-TEST(PlexTimeline, HalfWatchedIsNotMarkedWatchedAndADeadServerIsLeftAlone)
+void await(const plex::Timeline::Done &done)
+{
+    for (int i = 0; i < 5000 && !done->load(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    ASSERT_TRUE(done->load());
+}
+
+TEST(PlexTimeline, OnlyACompletedTitleIsMarkedWatchedAndADeadServerIsLeftAlone)
 {
     FakePlex fake;
     plex::Playback playback{server(), identity(), "101", "session-4"};
@@ -783,7 +920,9 @@ TEST(PlexTimeline, HalfWatchedIsNotMarkedWatchedAndADeadServerIsLeftAlone)
         },
         10));
     std::this_thread::sleep_for(std::chrono::milliseconds(40));
-    reporter.finish(2700000000u, 5400000000u, false);
+    // Past 90% but left before its end: the app keeps a resume point, so Plex is not told
+    // it was watched either.
+    await(reporter.finish(5100000000u, 5400000000u, false));
     const auto all = fake.requests();
     ASSERT_EQ(all.size(), 1u); // nothing to say until the player has a position; then stopped
     EXPECT_EQ(query_of(all[0].url).at("state"), "stopped");
@@ -796,8 +935,69 @@ TEST(PlexTimeline, HalfWatchedIsNotMarkedWatchedAndADeadServerIsLeftAlone)
     ASSERT_TRUE(unanswered.start(
         playback, [](std::uint64_t *, std::uint64_t *, bool *) { return false; }, dead.transport(),
         10));
-    unanswered.finish(5400000000u, 5400000000u, true);
+    await(unanswered.finish(5400000000u, 5400000000u, true));
     EXPECT_EQ(dead.requests().size(), 1u); // the stopped report went unanswered: nothing more
+}
+
+TEST(PlexTimeline, StoppingDoesNotWaitForTheServer)
+{
+    plex::Playback playback{server(), identity(), "101", "session-6"};
+    playback.transcode = true;
+    std::atomic<bool> in_flight{false}, saw_cancel{false};
+    std::mutex mutex;
+    std::vector<std::string> sent;
+    plex::Timeline reporter;
+    ASSERT_TRUE(reporter.start(
+        playback,
+        [](std::uint64_t *at, std::uint64_t *duration, bool *paused)
+        {
+            *at = 1000000;
+            *duration = 2000000;
+            *paused = false;
+            return true;
+        },
+        [&](const plex::Request &request)
+        {
+            {
+                const std::lock_guard lock(mutex);
+                sent.push_back(request.url);
+            }
+            if (request.url.find("state=playing") != std::string::npos)
+            {
+                // A server that never answers: only the timeline's control ends it.
+                in_flight = true;
+                for (int i = 0; i < 10000; ++i)
+                {
+                    if (request.control && request.control->cancelled &&
+                        request.control->cancelled(request.control->context))
+                    {
+                        saw_cancel = true;
+                        return plex::Reply{};
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                return plex::Reply{};
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            return plex::Reply{200, ""};
+        },
+        10));
+    for (int i = 0; i < 2000 && !in_flight; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    ASSERT_TRUE(in_flight);
+    const auto started = std::chrono::steady_clock::now();
+    const auto done = reporter.finish(1500000, 2000000, true);
+    // Back at once: the report on its way was stopped, and the last ones are someone else's.
+    EXPECT_LT(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(200));
+    EXPECT_TRUE(saw_cancel);
+    EXPECT_FALSE(done->load());
+    await(done);
+    const std::lock_guard lock(mutex);
+    ASSERT_EQ(sent.size(), 4u);
+    EXPECT_NE(sent[1].find("state=stopped&time=1500"), std::string::npos) << sent[1];
+    EXPECT_NE(sent[2].find("/:/scrobble?"), std::string::npos);
+    EXPECT_NE(sent[3].find("/video/:/transcode/universal/stop?session=session-6"),
+              std::string::npos);
 }
 
 // ---- the token ----------------------------------------------------------------------------
@@ -851,7 +1051,7 @@ TEST(PlexToken, IsNeverLoggedAndNeverInAnAddress)
         },
         fake.transport(), 5));
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    reporter.finish(1, 2, true);
+    await(reporter.finish(1, 2, true));
     diag::set_enabled(false);
     diag::set_sink(nullptr);
 
@@ -867,6 +1067,12 @@ TEST(PlexToken, IsNeverLoggedAndNeverInAnAddress)
 }
 
 // ---- Plex as a source of the app ----------------------------------------------------------
+
+std::string read_file(const std::string &path)
+{
+    std::ifstream file(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>(file), {}};
+}
 
 class PlexModelTest : public ::testing::Test
 {
@@ -931,12 +1137,21 @@ TEST_F(PlexModelTest, SignInMakesServersSourcesAndPlaysWithTheTokenInAHeaderOnly
         EXPECT_TRUE(model.plex_signed_in());
         EXPECT_EQ(model.plex_account_name(), "Andrew");
 
-        // Each server is a source; the server's token is its password, as an Xtream password.
+        // Each server that answered is a source; the server's token is its password, as an
+        // Xtream password. The shared one answered nowhere: it is not saved at an address that
+        // never proved to be it, and the viewer is told.
         std::vector<SavedSource> plex_sources;
         for (const auto &source : model.saved_sources())
             if (source.kind == 6)
                 plex_sources.push_back(source);
-        ASSERT_EQ(plex_sources.size(), 2u);
+        ASSERT_EQ(plex_sources.size(), 1u);
+        const auto notices = model.take_notices();
+        EXPECT_TRUE(
+            std::any_of(notices.begin(), notices.end(), [](const Notice &notice)
+                        { return notice.title == "Some Plex servers could not be reached"; }));
+        // Its plex.direct name is dialled at its address from now on, by every connection.
+        EXPECT_EQ(host::pinned_hosts(),
+                  (std::vector<std::string>{"192-168-1-5.aaaabbbb.plex.direct:32400:192.168.1.5"}));
         EXPECT_EQ(plex_sources[0].name, "Living Room");
         EXPECT_EQ(plex_sources[0].url, kLocal);
         EXPECT_EQ(plex_sources[0].username, "Andrew");
@@ -992,7 +1207,113 @@ TEST_F(PlexModelTest, SignInMakesServersSourcesAndPlaysWithTheTokenInAHeaderOnly
     ASSERT_TRUE(plex::load_account(dir + "/prosperotv-plex-v1.txt", &saved));
     EXPECT_FALSE(saved.signed_in());
     EXPECT_EQ(saved.client_id, client_id);
+    // The servers' rows were overwritten, not only unlinked: the file keeps no token.
+    EXPECT_EQ(read_file(dir + "/prosperotv-library.sqlite3").find(kServerToken), std::string::npos);
     again.close();
+}
+
+TEST_F(PlexModelTest, AServerNotReachedThisLaunchIsSentNothingWithItsToken)
+{
+    std::int64_t id = 0;
+    {
+        Library library;
+        ASSERT_TRUE(library.open(dir + "/prosperotv-library.sqlite3"));
+        SavedSource source{
+            0, 6, "Living Room", kLocal, "Andrew", kServerToken, kMachine, RefreshSchedule::daily};
+        ASSERT_TRUE(library.save_source(&source));
+        ASSERT_TRUE(library.select_source(source.id));
+        id = source.id;
+    }
+    ASSERT_TRUE(plex::save_account(dir + "/prosperotv-plex-v1.txt",
+                                   {identity().client_id, kAccountToken, "Andrew"}));
+    // Neither plex.tv nor the server answers this time.
+    host::reset();
+    host::set_network(true, "");
+    Model model(dir);
+    ASSERT_TRUE(model.open());
+    ASSERT_TRUE(settle(model));
+    EXPECT_EQ(model.active_source(), iptv::SourceKind::Plex);
+    EXPECT_EQ(model.plex_reach(id), 0);
+    EXPECT_TRUE(model.image_credentials().origin.empty());
+    EXPECT_TRUE(model.image_credentials().headers.empty());
+
+    // The films saved at an earlier launch are still listed...
+    {
+        FakePlex earlier;
+        earlier.on("GET", std::string(kLocal) + "/library/sections", 200, kSections);
+        earlier.on("GET", all_url("1", 1, 0, 200), 200, page({movie(101, "Film", kMkv)}, 1));
+        iptv::Catalog films;
+        std::string error;
+        ASSERT_TRUE(ptv::load_plex_vod(server(), identity(), VodKind::movies, {}, &films, nullptr,
+                                       &error, nullptr, nullptr, 0, earlier.transport()));
+        ASSERT_EQ(iptv::SaveCatalog(model.vod().cache_file(VodKind::movies), films,
+                                    {.allow_empty = true}),
+                  iptv::StoreStatus::ok);
+    }
+    model.vod().select(VodKind::movies);
+    ASSERT_TRUE(settle(model));
+    ASSERT_EQ(model.vod().catalog().size(), 1u);
+    // ...but nothing plays from a server that did not answer.
+    EXPECT_FALSE(model.play_vod(0));
+    PlayRequest request;
+    EXPECT_FALSE(model.take_play_request(&request));
+
+    // A token went only to plex.tv; the saved address was asked, over https and with none,
+    // who it is, and nothing else.
+    std::vector<std::string> to_saved;
+    for (const auto &asked : host::api_requests())
+    {
+        if (std::any_of(asked.headers.begin(), asked.headers.end(), [](const std::string &header)
+                        { return header.starts_with("X-Plex-Token"); }))
+            EXPECT_TRUE(asked.url.starts_with("https://plex.tv/")) << asked.url;
+        if (asked.url.starts_with(kLocal))
+            to_saved.push_back(asked.url);
+    }
+    EXPECT_EQ(to_saved, (std::vector<std::string>{std::string(kLocal) + "/identity"}));
+    model.close();
+}
+
+TEST_F(PlexModelTest, BackupsKeepNoPlexServerAndNoToken)
+{
+    const std::string config = dir + "/config", drive = dir + "/usb0", other = dir + "/other";
+    for (const auto &folder : {config, drive, other})
+        std::filesystem::create_directory(folder);
+    {
+        Library library;
+        ASSERT_TRUE(library.open(config + "/prosperotv-library.sqlite3"));
+        SavedSource plex_source{
+            0, 6, "Living Room", kLocal, "Andrew", kServerToken, kMachine, RefreshSchedule::daily};
+        SavedSource xtream{0,           2,
+                           "Family TV", "https://provider.invalid",
+                           "user",      "xtream-secret",
+                           {},          RefreshSchedule::daily};
+        ASSERT_TRUE(library.save_source(&plex_source));
+        ASSERT_TRUE(library.save_source(&xtream));
+        ASSERT_TRUE(library.select_source(plex_source.id));
+    }
+    std::string error;
+    const auto archive = drive + "/ProsperoTV-backup.sqlite3";
+    ASSERT_TRUE(ptv::backup_settings(config, archive, error)) << error;
+    const auto bytes = read_file(archive);
+    EXPECT_EQ(bytes.find(kServerToken), std::string::npos);
+    EXPECT_NE(bytes.find("xtream-secret"), std::string::npos); // the library itself is there
+    EXPECT_FALSE(std::filesystem::exists(config + "/prosperotv-backup-library.tmp"));
+    // The console keeps its Plex server; a console restored from the backup does not.
+    {
+        Library library;
+        ASSERT_TRUE(library.open(config + "/prosperotv-library.sqlite3"));
+        const auto kept = library.sources();
+        EXPECT_TRUE(std::any_of(kept.begin(), kept.end(),
+                                [](const SavedSource &source) { return source.kind == 6; }));
+    }
+    ASSERT_TRUE(ptv::restore_settings(other, archive, error)) << error;
+    Library restored;
+    ASSERT_TRUE(restored.open(other + "/prosperotv-library.sqlite3"));
+    const auto sources = restored.sources();
+    EXPECT_TRUE(std::none_of(sources.begin(), sources.end(),
+                             [](const SavedSource &source) { return source.kind == 6; }));
+    EXPECT_TRUE(std::any_of(sources.begin(), sources.end(),
+                            [](const SavedSource &source) { return source.kind == 2; }));
 }
 
 } // namespace

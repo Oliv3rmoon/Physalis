@@ -853,3 +853,8 @@
 {"The Plex server did not answer.", {"لم يستجب خادم Plex.", "שרת Plex לא הגיב."}},
 {"Plex has no file for this title.", {"لا يملك Plex ملفًا لهذا العنوان.", "ל-Plex אין קובץ עבור כותר זה."}},
 {"The Plex server could not be asked.", {"تعذر الاستعلام من خادم Plex.", "לא ניתן לפנות לשרת Plex."}},
+{"Can't be reached", {"يتعذر الوصول إليه", "לא ניתן להגיע אליו"}},
+{"Not reached this launch: nothing is sent to it. Press Options to look for it again.", {"لم يتم الوصول إليه منذ هذا التشغيل: لا يُرسل إليه شيء. اضغط Options للبحث عنه مجددًا.", "לא הושג מאז ההפעלה הזו: לא נשלח אליו דבר. לחץ על Options כדי לחפש אותו שוב."}},
+{"No Plex server could be reached", {"تعذر الوصول إلى أي خادم Plex", "לא ניתן היה להגיע לאף שרת Plex"}},
+{"Some Plex servers could not be reached", {"تعذر الوصول إلى بعض خوادم Plex", "לא ניתן היה להגיע לחלק משרתי Plex"}},
+{"Find servers adds them once they can be reached.", {"يضيفها البحث عن الخوادم بمجرد إمكانية الوصول إليها.", "חיפוש שרתים מוסיף אותם ברגע שאפשר להגיע אליהם."}},

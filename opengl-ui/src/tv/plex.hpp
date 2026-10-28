@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -56,8 +57,13 @@ struct Request
     std::string method = "GET";
     std::string url;
     std::vector<std::string> headers;
+    // "host:port:address": a *.plex.direct name dialled at the address plex.tv gave for it, so
+    // https works behind a router that refuses DNS answers naming private addresses.
+    std::vector<std::string> resolve;
     unsigned connect_ms = 5000;
     unsigned timeout_ms = 15000;
+    // Stops this request (as well as the transport's own control).
+    const iptv::http::RequestControl *control = nullptr;
 };
 struct Reply
 {
@@ -108,20 +114,35 @@ struct Resource
 bool parse_resources(std::string_view json, std::vector<Resource> *servers);
 bool resources(const Transport &transport, const Identity &identity, const std::string &token,
                std::vector<Resource> *servers);
+// A *.plex.direct https address's pin ("host:port:address"), from the address plex.tv gave or,
+// without one, from the name itself (which spells its IPv4 address); empty for anything else.
+std::string pin_for(std::string_view url, std::string_view address = {});
+struct Candidate
+{
+    std::string url, pin;
+    bool operator==(const Candidate &) const = default;
+};
 // The addresses worth trying, best first, as PlxNative ranks them: local, then remote, then
-// relay; https before http inside each; IPv4 before IPv6; a number before a name. A local
-// address is also tried over plain http at its address and port, unless the owner requires
-// https, it is a relay, or it is a shared server's LAN that is not ours.
-std::vector<std::string> candidates(const Resource &server);
+// relay; https before http inside each; IPv4 before IPv6; a number before a name. Over plain
+// http an answer proves nothing, so http is tried only on our own LAN: a local, non-relay
+// address of a server plex.tv says stands behind our router (publicAddressMatches) and that
+// does not require https; such an address is also tried at its IP and port.
+std::vector<Candidate> candidates(const Resource &server);
 bool parse_identity(std::string_view json, std::string *machine);
-// The first candidate whose /identity names this server; empty when none answered.
-std::string choose_connection(const Transport &transport, const Identity &identity,
-                              const Resource &server);
+struct Reached
+{
+    std::string base, pin; // empty base: none answered
+};
+// All candidates asked at once (each for at most `budget_ms`); the best-ranked one whose
+// /identity names this server.
+Reached choose_connection(const Transport &transport, const Identity &identity,
+                          const Resource &server, unsigned budget_ms = 4000);
 
 // ---- one server ----
 struct Server
 {
     std::string base;    // the connection in use: scheme, host and port, no slash
+    std::string pin;     // its plex.direct pin, when it has one
     std::string token;   // the server's own access token
     std::string machine; // its machineIdentifier
     std::string name;
@@ -139,10 +160,10 @@ std::string url_encode(std::string_view text);
 struct Check
 {
     bool ok = false;
-    std::string base, token, name, error;
+    std::string base, pin, token, name, error;
 };
 // With the account's token, the server list says where the server is now and gives its token;
-// without one (or when plex.tv does not answer), the saved address is asked.
+// without one (or when plex.tv does not answer), the saved address is asked, over https only.
 Check check_server(const Transport &transport, const Identity &identity, const Server &server,
                    const std::string &account_token);
 
@@ -173,7 +194,8 @@ struct Page
     std::size_t total = 0;
     bool has_total = false;
 };
-bool parse_items(std::string_view json, Page *page);
+// At most `most` items are kept; the rest of the answer is read past.
+bool parse_items(std::string_view json, Page *page, std::size_t most = 100000);
 // A section's titles, `page_size` at a time (X-Plex-Container-Start/Size), handed to `each`
 // in order; at most `limit` of them, and *truncated says when there were more.
 bool list_section(const Transport &transport, const Identity &identity, const Server &server,
@@ -206,6 +228,7 @@ struct Playback
     Identity identity;
     std::string rating_key, session;
     int media_index = 0;
+    std::uint64_t offset_ms = 0; // where the transcoder starts (offset=): the resume point
     bool transcode = false;
     bool active() const
     {
@@ -282,10 +305,13 @@ std::string timeline_url(const Playback &playback, State state, std::uint64_t ti
                          std::uint64_t duration_ms);
 std::string scrobble_url(const Playback &playback);
 bool report(const Transport &transport, const Playback &playback, State state,
-            std::uint64_t time_ms, std::uint64_t duration_ms);
+            std::uint64_t time_ms, std::uint64_t duration_ms, unsigned timeout_ms = 6000,
+            const iptv::http::RequestControl *control = nullptr);
 
-// Progress while a title plays: a timeline report when it starts, every `interval_ms` after
-// that and when it stops; watched when it ended (or 90% of it was seen); the transcoder freed.
+// Progress while a title plays: a timeline report when it starts and every `interval_ms`
+// after that. finish() stops a report on its way and returns at once: the stopped report, the
+// title marked watched when it was completed, and the transcoder's stop are sent by a worker
+// of their own, each with a short time limit.
 class Timeline
 {
   public:
@@ -295,8 +321,9 @@ class Timeline
     ~Timeline();
     bool start(Playback playback, Sample sample, Transport transport = {},
                unsigned interval_ms = 10000);
-    // Sends the last reports and waits for them.
-    void finish(std::uint64_t position_us, std::uint64_t duration_us, bool completed);
+    // Set once the last requests are done (or were given up).
+    using Done = std::shared_ptr<const std::atomic<bool>>;
+    Done finish(std::uint64_t position_us, std::uint64_t duration_us, bool completed);
     unsigned reports() const
     {
         return reports_.load();
@@ -307,20 +334,19 @@ class Timeline
     void *thread_ = nullptr;
     std::atomic<bool> stop_{false};
     std::atomic<unsigned> reports_{0};
-    Transport transport_;
+    iptv::http::RequestControl control_{};
+    Transport transport_, given_;
     Playback playback_;
     Sample sample_;
     unsigned interval_ms_ = 10000;
     std::uint64_t last_position_us_ = 0, last_duration_us_ = 0;
-    std::uint64_t final_position_us_ = 0, final_duration_us_ = 0;
-    bool completed_ = false;
 };
 
 // ---- signing in ----
 struct FoundServer
 {
     Resource resource;
-    std::string base; // the connection that answered; empty when none did
+    std::string base, pin; // the connection that answered; empty base when none did
 };
 // The PIN flow on a worker: a code is asked for, shown, and plex.tv is asked every
 // `poll_ms` whether someone entered it; then the account's name and servers.

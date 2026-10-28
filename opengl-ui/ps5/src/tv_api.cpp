@@ -57,6 +57,10 @@ ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl
     curl_slist *list = nullptr;
     for (const auto &header : request.headers)
         list = curl_slist_append(list, header.c_str());
+    // The app's pins, then this request's own (a later entry for a host replaces an earlier).
+    curl_slist *pins = tv_http_resolve_list();
+    for (const auto &pin : request.resolve)
+        pins = curl_slist_append(pins, pin.c_str());
     Call call{&reply.body, request.limit, control};
     console_curl_setup(curl);
     curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
@@ -64,6 +68,8 @@ ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+    if (pins)
+        curl_easy_setopt(curl, CURLOPT_RESOLVE, pins);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(request.connect_ms));
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(request.timeout_ms));
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
@@ -90,6 +96,7 @@ ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_cleanup(curl);
     curl_slist_free_all(list);
+    curl_slist_free_all(pins);
     if (result != CURLE_OK || call.too_large || progress(&call, 0, 0, 0, 0))
         return {};
     reply.status = static_cast<int>(status);

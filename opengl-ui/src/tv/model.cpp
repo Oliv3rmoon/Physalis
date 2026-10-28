@@ -256,7 +256,8 @@ bool Model::is_set_up(iptv::SourceKind source) const
     case iptv::SourceKind::Tvheadend:
         return !local_source_.url.empty() && valid_source(local_source_);
     case iptv::SourceKind::Plex:
-        return plex_server_.valid();
+        // Set up is a saved server; whether it answers is the launch's check.
+        return plex::valid_machine(plex_server_.machine) && plex::valid_token(plex_server_.token);
     case iptv::SourceKind::BuiltIn:
         break;
     }
@@ -1433,6 +1434,10 @@ void Model::refresh()
     refresh_local_ = local_source_;
     const bool is_plex = active_source_ == iptv::SourceKind::Plex;
     refresh_plex_ = is_plex ? plex_server_ : plex::Server{};
+    // The check alone may ask the saved address (over https, with no token) who it is.
+    if (const auto *saved = saved_source(selected_source_id_);
+        is_plex && saved != nullptr && refresh_plex_.base.empty())
+        refresh_plex_.base = saved->url;
     refresh_plex_account_ = is_plex ? plex_account_.token : std::string();
     pending_plex_ = {};
     const SourceHealth before = health_[static_cast<unsigned>(active_source_)];

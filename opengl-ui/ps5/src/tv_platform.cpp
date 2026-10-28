@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "tv/platform.hpp"
+#include "tv_http.h"
 
 extern "C" void hui_heap_stats(std::size_t *live_bytes, std::size_t *peak_bytes,
                                std::size_t *blocks, std::size_t *failures);
@@ -101,6 +102,11 @@ void network_shutdown()
 void network_cancel()
 {
     iptv::http::CancelActivePlaylistRequest();
+}
+
+void pin_host(const std::string &entry)
+{
+    tv_http_pin(entry.c_str());
 }
 
 iptv::http::FetchResult fetch(const char *url, char *buffer, std::size_t capacity,

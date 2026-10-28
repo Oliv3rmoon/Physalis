@@ -64,6 +64,7 @@ struct Request
     Connection *connection = nullptr;
     CURL *easy = nullptr;
     curl_slist *header_list = nullptr;
+    curl_slist *resolve_list = nullptr;
     std::vector<std::pair<std::string, std::string>> headers;
     std::string url;
     std::string response_headers;
@@ -80,6 +81,9 @@ struct Request
 };
 
 pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+// Hosts dialled at a given address (tv_http_pin), for every handle.
+pthread_mutex_t g_pin_lock = PTHREAD_MUTEX_INITIALIZER;
+std::vector<std::string> g_pins;
 
 // One thread (the player's) may ask to be consulted while it waits on the
 // network: a channel that never answers must not hold the buttons for the
@@ -384,6 +388,7 @@ int tv_http_delete_request(int id)
         curl_easy_cleanup(request->easy);
     }
     curl_slist_free_all(request->header_list);
+    curl_slist_free_all(request->resolve_list);
     delete request;
     return 0;
 }
@@ -479,6 +484,9 @@ int tv_http_send(int id, const void *, std::size_t)
     curl_easy_setopt(easy, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, connect_ms);
     curl_easy_setopt(easy, CURLOPT_HTTPHEADER, request->header_list);
+    request->resolve_list = tv_http_resolve_list();
+    if (request->resolve_list != nullptr)
+        curl_easy_setopt(easy, CURLOPT_RESOLVE, request->resolve_list);
     curl_easy_setopt(easy, CURLOPT_HEADERFUNCTION, on_header);
     curl_easy_setopt(easy, CURLOPT_HEADERDATA, request);
     curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION, on_body);
@@ -581,6 +589,32 @@ void tv_http_set_interrupt(bool (*asked)(void *), void *context)
     g_interrupt_thread = pthread_self();
     g_interrupt_asked_ms = 0;
     g_interrupt = asked;
+}
+
+void tv_http_pin(const char *entry)
+{
+    if (entry == nullptr || *entry == '\0')
+        return;
+    const std::string pin(entry);
+    // The host and port are the key; an IPv6 address has colons of its own.
+    const auto key = [](const std::string &value)
+    { return value.substr(0, value.find(':', value.find(':') + 1)); };
+    pthread_mutex_lock(&g_pin_lock);
+    for (auto it = g_pins.begin(); it != g_pins.end();)
+        it = key(*it) == key(pin) ? g_pins.erase(it) : it + 1;
+    if (g_pins.size() < 64)
+        g_pins.push_back(pin);
+    pthread_mutex_unlock(&g_pin_lock);
+}
+
+curl_slist *tv_http_resolve_list(void)
+{
+    curl_slist *list = nullptr;
+    pthread_mutex_lock(&g_pin_lock);
+    for (const auto &pin : g_pins)
+        list = curl_slist_append(list, pin.c_str());
+    pthread_mutex_unlock(&g_pin_lock);
+    return list;
 }
 
 int tv_http_abort(int id)

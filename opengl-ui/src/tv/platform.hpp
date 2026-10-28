@@ -64,6 +64,7 @@ struct ApiRequest
     const char *method = "GET";
     std::string url;
     std::vector<std::string> headers; // "Name: value"
+    std::vector<std::string> resolve; // "host:port:address", as CURLOPT_RESOLVE takes them
     unsigned connect_ms = 5000;
     unsigned timeout_ms = 15000; // the whole request
     std::size_t limit = 8u * 1024u * 1024u;
@@ -74,6 +75,11 @@ struct ApiReply
     std::string body;
 };
 ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl *control);
+// From now on every connection of the app (the player's, the catalog's, the artwork's, these
+// API calls) dials this host at this address ("host:port:address"): a Plex server's
+// *.plex.direct name, kept working behind a router that refuses DNS answers for private
+// addresses. A later pin for the same host and port replaces the earlier one.
+void pin_host(const std::string &entry);
 
 // ---- updates ----
 // Once per launch the machine asks GitHub whether Oliv3rmoon/Nightshade-TV has a

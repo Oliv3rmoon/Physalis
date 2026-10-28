@@ -46,7 +46,10 @@ bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
     if (headers)
         for (const auto &header : *headers)
             list = curl_slist_append(list, header.c_str());
+    curl_slist *pins = tv_http_resolve_list();
     console_curl_setup(curl);
+    if (pins)
+        curl_easy_setopt(curl, CURLOPT_RESOLVE, pins);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "ProsperoTV");
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
@@ -69,6 +72,7 @@ bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_cleanup(curl);
     curl_slist_free_all(list);
+    curl_slist_free_all(pins);
     if (result == CURLE_OK && status == 200 && !progress(&download, 0, 0, 0, 0))
         return true;
     bytes->clear();

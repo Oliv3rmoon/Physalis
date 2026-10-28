@@ -542,7 +542,9 @@ bool load_plex_vod(const plex::Server &server, const plex::Identity &identity, V
     error->clear();
     if (!server.valid() || (kind == VodKind::episodes && series.empty()))
     {
-        *error = tr("Sign in to Plex in Sources.");
+        // A server not reached this launch is asked nothing.
+        *error = server.source_id && !server.valid() ? tr("The Plex server could not be reached.")
+                                                     : tr("Sign in to Plex in Sources.");
         return false;
     }
     catalog->source_id = server.source_id;
@@ -720,7 +722,7 @@ const VodDetails &VodLibrary::details(std::string_view id) const
 }
 void VodLibrary::request_details(unsigned index)
 {
-    if (kind_ != VodKind::movies || index >= catalog_.size() || plex_.valid())
+    if (kind_ != VodKind::movies || index >= catalog_.size() || plex())
         return;
     const auto item = catalog_[index];
     if (details(item.id).complete)
@@ -758,7 +760,7 @@ void VodLibrary::configure(iptv::XtreamCredentials account, std::string cache,
                            std::string extra_headers)
 {
     schedule_ = schedule;
-    if (!playlist_ && !plex_.valid() && account.server_url == account_.server_url &&
+    if (!playlist_ && !plex() && account.server_url == account_.server_url &&
         account.username == account_.username && account.password == account_.password &&
         cache == cache_ && user_agent == user_agent_ && referrer == referrer_ &&
         extra_headers == extra_headers_)
@@ -793,7 +795,7 @@ void VodLibrary::configure_like(const VodLibrary &source, bool reload)
         stop();
         key_.clear(); // Another browser may have refreshed the shared disk cache.
     }
-    if (source.plex_.valid())
+    if (source.plex())
     {
         configure_plex(source.plex_, source.plex_identity_, source.cache_, source.schedule_);
         return;
@@ -807,7 +809,8 @@ void VodLibrary::configure_plex(plex::Server server, plex::Identity identity, st
                                 RefreshSchedule schedule)
 {
     schedule_ = schedule;
-    if (plex_.valid() && server.base == plex_.base && server.token == plex_.token &&
+    if (plex() && server.base == plex_.base && server.pin == plex_.pin &&
+        server.token == plex_.token && server.source_id == plex_.source_id &&
         server.machine == plex_.machine && cache == cache_ &&
         identity.client_id == plex_identity_.client_id)
         return;
@@ -834,7 +837,7 @@ void VodLibrary::configure_plex(plex::Server server, plex::Identity identity, st
 }
 std::uint64_t VodLibrary::fingerprint() const
 {
-    return plex_.valid() ? plex_.source_id : iptv::XtreamSourceId(account_);
+    return plex() ? plex_.source_id : iptv::XtreamSourceId(account_);
 }
 std::size_t VodLibrary::find_series(std::string_view series, std::uint64_t source) const
 {
@@ -1456,7 +1459,7 @@ void *VodLibrary::work(void *self)
         }
         else
         {
-            v.ok_ = v.plex_.valid()
+            v.ok_ = v.plex()
                         ? load_plex_vod(v.plex_, v.plex_identity_, v.kind_, v.series_, &v.pending_,
                                         &control, &v.error_, &v.pending_metadata_,
                                         &v.pending_truncated_)

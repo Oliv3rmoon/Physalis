@@ -380,6 +380,8 @@ class Model
         std::vector<std::string> headers;
     };
     ImageCredentials image_credentials() const;
+    // A Plex source's state this launch: -1 not looked for yet, 0 not reached, 1 reached.
+    int plex_reach(std::int64_t id) const;
     // How often plex.tv is asked whether the code was entered (tests make it short).
     void set_plex_poll_interval(unsigned milliseconds)
     {
@@ -911,8 +913,9 @@ class Model
     std::string refresh_plex_account_;
     plex::Check pending_plex_;
     std::unique_ptr<plex::SignIn> plex_sign_in_;
-    // The connection each Plex source was found at this launch ("" when it was not).
-    std::map<std::int64_t, std::string> plex_bases_;
+    // The connection each Plex source was found at this launch (an empty base: it was looked
+    // for and not reached). Only these are ever asked for anything with a token.
+    std::map<std::int64_t, plex::Reached> plex_bases_;
     unsigned plex_poll_ms_ = 2000;
     AccountStep account_step_ = AccountStep::none;
     bool account_prompt_pending_ = false;

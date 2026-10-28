@@ -52,6 +52,7 @@ struct Network
     std::map<std::string, std::pair<int, std::string>> api;
     std::vector<host::ApiRecord> api_requests;
     std::unordered_map<std::string, std::vector<std::string>> image_headers;
+    std::vector<std::string> pins;
 };
 
 struct Update
@@ -164,6 +165,12 @@ std::vector<ApiRecord> api_requests()
     return g_network.api_requests;
 }
 
+std::vector<std::string> pinned_hosts()
+{
+    const std::lock_guard<std::mutex> lock(g_network.mutex);
+    return g_network.pins;
+}
+
 std::vector<std::string> image_headers(const std::string &url)
 {
     const std::lock_guard<std::mutex> lock(g_network.mutex);
@@ -232,6 +239,7 @@ void reset()
         g_network.api.clear();
         g_network.api_requests.clear();
         g_network.image_headers.clear();
+        g_network.pins.clear();
     }
     set_network_piece(0);
     g_network.fetches.store(0);
@@ -389,6 +397,16 @@ void network_cancel()
     g_network.cancelled.store(true);
 }
 
+void pin_host(const std::string &entry)
+{
+    const std::lock_guard<std::mutex> lock(g_network.mutex);
+    // "host:port:address": the host and port are the key (an IPv6 address has colons too).
+    const auto key = [](const std::string &pin)
+    { return pin.substr(0, pin.find(':', pin.find(':') + 1)); };
+    std::erase_if(g_network.pins, [&](const std::string &pin) { return key(pin) == key(entry); });
+    g_network.pins.push_back(entry);
+}
+
 ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl *control)
 {
     ApiReply reply;
@@ -396,7 +414,7 @@ ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl
     {
         const std::lock_guard<std::mutex> lock(g_network.mutex);
         g_network.api_requests.push_back(
-            {request.method ? request.method : "", request.url, request.headers});
+            {request.method ? request.method : "", request.url, request.headers, request.resolve});
         const auto found = g_network.api.find(std::string(request.method ? request.method : "") +
                                               " " + request.url);
         if (found != g_network.api.end())

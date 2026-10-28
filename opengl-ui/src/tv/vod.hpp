@@ -71,9 +71,11 @@ class VodLibrary
     void configure_playlist(const iptv::Catalog *playlist);
     void configure_plex(plex::Server server, plex::Identity identity, std::string cache,
                         RefreshSchedule schedule);
+    // A Plex server's lists, reachable or not: one that has not answered this launch has no
+    // address or token here, and only its saved lists are read.
     bool plex() const
     {
-        return plex_.valid();
+        return plex_.source_id != 0;
     }
     // Whose lists these are: what the saved lists' source id must be.
     std::uint64_t fingerprint() const;
@@ -105,7 +107,8 @@ class VodLibrary
     static void playlist_counts(const iptv::Catalog &playlist, unsigned *movies, unsigned *shows);
     bool available() const
     {
-        return playlist_ != nullptr || plex_.valid() || iptv::ValidateXtreamCredentials(account_);
+        return playlist_ != nullptr || plex_.source_id != 0 ||
+               iptv::ValidateXtreamCredentials(account_);
     }
     bool busy() const
     {

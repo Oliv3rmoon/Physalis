@@ -174,6 +174,57 @@ bool write_archive(const std::string &path, const Files &files)
     return true;
 }
 
+bool read_whole(const std::string &path, std::string *data)
+{
+    bool exists;
+    if (!regular(path, kFileLimit, exists) || !exists)
+        return false;
+    std::FILE *file = std::fopen(path.c_str(), "rb");
+    if (!file)
+        return false;
+    data->clear();
+    char buffer[16384];
+    std::size_t count;
+    while ((count = std::fread(buffer, 1, sizeof(buffer), file)) != 0 &&
+           data->size() + count <= kFileLimit)
+        data->append(buffer, count);
+    const bool ok = std::ferror(file) == 0 && count == 0;
+    std::fclose(file);
+    return ok;
+}
+
+// A backup goes onto a USB drive, and a Plex server's token (for its owner, usually the
+// account's own) is the account itself: the copy keeps no Plex server. Their rows are deleted
+// from a scratch copy beside the settings, overwritten where they lay (secure_delete), and
+// the copy rewritten (VACUUM) so that no free page keeps one. Signing in again brings them
+// back. The settings themselves, and a restore's journal, are left as they are.
+bool strip_plex(const std::string &directory, File &library)
+{
+    if (!library.present)
+        return true;
+    const auto scratch = directory + "/prosperotv-backup-library.tmp";
+    bool ok = replace_file(scratch, library);
+    sqlite3 *db = nullptr;
+    ok = ok && sqlite3_open_v2(scratch.c_str(), &db, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK;
+    sqlite3_stmt *table = nullptr;
+    const bool sources = ok &&
+                         sqlite3_prepare_v2(db,
+                                            "SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                                            "name='sources'",
+                                            -1, &table, nullptr) == SQLITE_OK &&
+                         sqlite3_step(table) == SQLITE_ROW;
+    sqlite3_finalize(table);
+    ok = ok && (!sources || sqlite3_exec(db,
+                                         "PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON;"
+                                         "DELETE FROM sources WHERE kind=6; VACUUM;",
+                                         nullptr, nullptr, nullptr) == SQLITE_OK);
+    ok = sqlite3_close(db) == SQLITE_OK && ok;
+    ok = ok && read_whole(scratch, &library.data);
+    std::remove(scratch.c_str());
+    std::remove((scratch + "-journal").c_str());
+    return ok;
+}
+
 bool read_archive(const std::string &path, Files &files)
 {
     bool exists;
@@ -286,7 +337,9 @@ std::vector<std::string> usb_drives(const std::string &mount_root)
 bool backup_settings(const std::string &directory, const std::string &archive, std::string &error)
 {
     Files files;
-    if (!read_files(directory, files) || !write_archive(archive, files))
+    static_assert(std::string_view(kNames[1]) == "prosperotv-library.sqlite3");
+    if (!read_files(directory, files) || !strip_plex(directory, files[1]) ||
+        !write_archive(archive, files))
     {
         error = "The backup could not be written. Check the USB drive and free space.";
         return false;

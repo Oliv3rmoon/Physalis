@@ -601,6 +601,14 @@ bool Model::queue_vod(const iptv::ChannelView &item, const std::string &series, 
 {
     if (!playback_allowed())
         return false;
+    // A Plex title plays only from a server found answering this launch.
+    if (active_source_ == iptv::SourceKind::Plex && item.source_id == plex_server_.source_id &&
+        !plex_server_.valid())
+    {
+        notify(Level::warning, tr("The Plex server could not be reached"),
+               tr("The Plex server could not be reached."));
+        return false;
+    }
     if (inherit_series)
         clear_home_playback();
     auto snapshot = item.Copy();

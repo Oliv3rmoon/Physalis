@@ -135,9 +135,15 @@ bool safe_header_value(std::string_view value)
                         [](unsigned char c) { return c < 0x20u || c == 0x7fu; });
 }
 
+struct Options
+{
+    unsigned connect_ms = 5000, timeout_ms = 15000;
+    std::string_view pin;
+    const iptv::http::RequestControl *control = nullptr;
+};
+
 Reply call(const Transport &transport, const Identity &identity, std::string method,
-           std::string url, std::string_view token, unsigned connect_ms = 5000,
-           unsigned timeout_ms = 15000)
+           std::string url, std::string_view token, const Options &options = {})
 {
     if (!transport)
         return {};
@@ -145,9 +151,20 @@ Reply call(const Transport &transport, const Identity &identity, std::string met
     request.method = std::move(method);
     request.url = std::move(url);
     request.headers = headers(identity, token);
-    request.connect_ms = connect_ms;
-    request.timeout_ms = timeout_ms;
+    if (!options.pin.empty())
+        request.resolve.emplace_back(options.pin);
+    request.connect_ms = options.connect_ms;
+    request.timeout_ms = options.timeout_ms;
+    request.control = options.control;
     return transport(request);
+}
+
+// A request to the server, at its connection (and its pin), with its token.
+Reply ask(const Transport &transport, const Identity &identity, const Server &server,
+          std::string path, Options options = {})
+{
+    options.pin = server.pin;
+    return call(transport, identity, "GET", server.base + path, server.token, options);
 }
 
 // {"MediaContainer": {...}}: each field of the container.
@@ -323,8 +340,10 @@ bool read_item(JsonReader *value, Item *item)
     };
     item->index = small(index);
     item->parent_index = small(parent);
-    item->duration_ms = number(duration);
-    item->view_offset_ms = number(offset);
+    // Times past a thousand years are no times: their microseconds would not fit.
+    constexpr std::uint64_t kMostMs = UINT64_C(31536000000000);
+    item->duration_ms = std::min(number(duration), kMostMs);
+    item->view_offset_ms = std::min(number(offset), kMostMs);
     item->added_at = number(added);
     item->updated_at = number(updated);
     const auto year_value = number(year);
@@ -480,8 +499,7 @@ bool valid_machine(std::string_view machine)
 {
     return machine.size() >= 8 && machine.size() <= 64 &&
            std::all_of(machine.begin(), machine.end(),
-                       [](unsigned char c)
-                       {
+                       [](unsigned char c) {
                            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
                                   (c >= 'A' && c <= 'Z') || c == '-';
                        });
@@ -527,9 +545,25 @@ Transport platform_transport(const iptv::http::RequestControl *control)
         api.method = request.method.c_str();
         api.url = request.url;
         api.headers = request.headers;
+        api.resolve = request.resolve;
         api.connect_ms = request.connect_ms;
         api.timeout_ms = request.timeout_ms;
-        auto reply = platform::api_request(api, control);
+        // Either control stops it: the transport's (a cancelled job) or the request's own.
+        struct Both
+        {
+            const iptv::http::RequestControl *first, *second;
+        } both{control, request.control};
+        const iptv::http::RequestControl stop{
+            [](void *context)
+            {
+                const auto &b = *static_cast<const Both *>(context);
+                for (const auto *c : {b.first, b.second})
+                    if (c && c->cancelled && c->cancelled(c->context))
+                        return true;
+                return false;
+            },
+            &both};
+        auto reply = platform::api_request(api, &stop);
         return Reply{reply.status, std::move(reply.body)};
     };
 }
@@ -721,52 +755,96 @@ bool resources(const Transport &transport, const Identity &identity, const std::
     return reply.status == 200 && parse_resources(reply.body, servers);
 }
 
-std::vector<std::string> candidates(const Resource &server)
+std::string pin_for(std::string_view url, std::string_view address)
 {
-    struct Candidate
+    if (!url.starts_with("https://"))
+        return {};
+    auto authority = url.substr(8);
+    authority = authority.substr(0, authority.find_first_of("/?#"));
+    const auto colon = authority.rfind(':');
+    const auto host = authority.substr(0, colon);
+    const std::string port(colon == std::string_view::npos ? std::string_view("443")
+                                                           : authority.substr(colon + 1));
+    if (!host.ends_with(".plex.direct") || host.size() > 253 || port.empty() || port.size() > 5 ||
+        port.find_first_not_of("0123456789") != std::string::npos ||
+        host.find_first_not_of(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.") !=
+            std::string_view::npos)
+        return {};
+    std::string at(address);
+    if (at.empty())
     {
-        std::string url;
+        // 192-168-1-5.<hash>.plex.direct is 192.168.1.5.
+        const auto label = host.substr(0, host.find('.'));
+        int parts = 0;
+        std::string dotted;
+        std::size_t from = 0;
+        while (from <= label.size())
+        {
+            const auto dash = std::min(label.find('-', from), label.size());
+            const auto part = label.substr(from, dash - from);
+            if (part.empty() || part.size() > 3 ||
+                part.find_first_not_of("0123456789") != std::string_view::npos ||
+                number(part) > 255)
+                return {};
+            dotted += (parts++ ? "." : "") + std::string(part);
+            from = dash + 1;
+        }
+        if (parts != 4)
+            return {};
+        at = dotted;
+    }
+    if (at.size() > 45 || at.find_first_not_of("0123456789abcdefABCDEF.:") != std::string::npos)
+        return {};
+    return std::string(host) + ":" + port + ":" +
+           (at.find(':') != std::string::npos ? "[" + at + "]" : at);
+}
+
+std::vector<Candidate> candidates(const Resource &server)
+{
+    struct Ranked
+    {
+        Candidate candidate;
         int location, scheme, v6, name;
     };
-    std::vector<Candidate> list;
+    std::vector<Ranked> list;
     const auto add = [&](std::string url, const Connection &connection)
     {
-        if (url.empty() ||
-            std::any_of(list.begin(), list.end(), [&](const Candidate &c) { return c.url == url; }))
+        if (url.empty() || std::any_of(list.begin(), list.end(),
+                                       [&](const Ranked &r) { return r.candidate.url == url; }))
             return;
         const bool https = url.starts_with("https://");
-        if (!https && server.https_required)
+        // Over plain http any box can say it is this server: only on our own LAN.
+        if (!https && (server.https_required || !server.public_address_matches ||
+                       !connection.local || connection.relay))
             return;
         const auto host = host_of(url);
-        list.push_back({std::move(url),
+        auto pin = https ? pin_for(url, connection.address) : std::string();
+        list.push_back({{std::move(url), std::move(pin)},
                         connection.relay   ? 2
                         : connection.local ? 0
                                            : 1,
-                        https ? 0 : 1, connection.ipv6 || host.starts_with("[") ? 1 : 0,
+                        https ? 0 : 1,
+                        connection.ipv6 || host.starts_with("[") ? 1 : 0,
                         numeric_host(host) ? 0 : 1});
     };
     for (const auto &connection : server.connections)
     {
         add(origin(connection.uri), connection);
-        // A shared server's LAN address is its owner's, not ours, unless we stand behind the
-        // same router: only its TLS address (which proves the server) is tried.
-        const bool foreign_lan =
-            connection.local && !server.owned && !server.public_address_matches;
-        if (connection.local && !connection.relay && !foreign_lan && !server.https_required &&
-            !connection.address.empty() && connection.port > 0)
+        if (!connection.address.empty() && connection.port > 0)
             add(origin("http://" + bracket(connection.address) + ":" +
                        std::to_string(connection.port)),
                 connection);
     }
     std::stable_sort(list.begin(), list.end(),
-                     [](const Candidate &a, const Candidate &b)
+                     [](const Ranked &a, const Ranked &b)
                      {
                          return std::tie(a.location, a.scheme, a.v6, a.name) <
                                 std::tie(b.location, b.scheme, b.v6, b.name);
                      });
-    std::vector<std::string> out;
-    for (auto &candidate : list)
-        out.push_back(std::move(candidate.url));
+    std::vector<Candidate> out;
+    for (auto &ranked : list)
+        out.push_back(std::move(ranked.candidate));
     return out;
 }
 
@@ -786,24 +864,61 @@ bool parse_identity(std::string_view json, std::string *machine)
     return true;
 }
 
-std::string choose_connection(const Transport &transport, const Identity &identity,
-                              const Resource &server)
+Reached choose_connection(const Transport &transport, const Identity &identity,
+                          const Resource &server, unsigned budget_ms)
 {
-    const auto list = candidates(server);
-    for (std::size_t i = 0; i < list.size() && i < 8; ++i)
+    auto list = candidates(server);
+    if (list.size() > 8)
+        list.resize(8);
+    // Each candidate on a worker of its own, so the slowest costs no more than the fastest.
+    struct Probe
     {
-        // /identity needs no token: it says only which server answered.
-        const auto reply = call(transport, identity, "GET", list[i] + "/identity", {}, 2500, 4000);
-        std::string machine;
-        if (reply.status == 200 && parse_identity(reply.body, &machine) &&
-            machine == server.machine)
+        const Transport *transport;
+        const Identity *identity;
+        const Resource *server;
+        Candidate candidate;
+        unsigned budget_ms = 0;
+        bool reached = false;
+        void *thread = nullptr;
+        void run()
         {
-            diag::event("plex: server reached at candidate %zu of %zu (%s)", i + 1, list.size(),
-                        list[i].starts_with("https://") ? "https" : "http");
-            return list[i];
+            // /identity needs no token: it says only which server answered.
+            const auto reply = call(*transport, *identity, "GET", candidate.url + "/identity", {},
+                                    {.connect_ms = std::min(2500u, budget_ms),
+                                     .timeout_ms = budget_ms,
+                                     .pin = candidate.pin});
+            std::string machine;
+            reached = reply.status == 200 && parse_identity(reply.body, &machine) &&
+                      machine == server->machine;
         }
+    };
+    std::vector<Probe> probes;
+    for (auto &candidate : list)
+        probes.push_back(
+            {&transport, &identity, &server, std::move(candidate), std::max(500u, budget_ms)});
+    for (auto &probe : probes)
+        probe.thread = platform::thread_start(
+            [](void *self) -> void *
+            {
+                static_cast<Probe *>(self)->run();
+                return nullptr;
+            },
+            &probe, 256u * 1024u, "ptv-plex-probe");
+    for (auto &probe : probes)
+    {
+        if (probe.thread)
+            platform::thread_join(probe.thread);
+        else
+            probe.run();
     }
-    diag::event("plex: none of %zu candidates answered", list.size());
+    for (std::size_t i = 0; i < probes.size(); ++i)
+        if (probes[i].reached)
+        {
+            diag::event("plex: server reached at candidate %zu of %zu (%s)", i + 1, probes.size(),
+                        probes[i].candidate.url.starts_with("https://") ? "https" : "http");
+            return {probes[i].candidate.url, probes[i].candidate.pin};
+        }
+    diag::event("plex: none of %zu candidates answered", probes.size());
     return {};
 }
 
@@ -826,16 +941,24 @@ Check check_server(const Transport &transport, const Identity &identity, const S
         check.token = found->token;
         if (!found->name.empty())
             check.name = found->name;
-        check.base = choose_connection(transport, identity, *found);
+        const auto reached = choose_connection(transport, identity, *found);
+        check.base = reached.base;
+        check.pin = reached.pin;
     }
-    if (check.base.empty() && !server.base.empty())
+    // Without plex.tv only the saved https address is asked: its certificate proves the
+    // server, where over plain http any box could answer for it.
+    if (check.base.empty() && server.base.starts_with("https://"))
     {
-        const auto reply =
-            call(transport, identity, "GET", server.base + "/identity", {}, 2500, 4000);
+        const auto pin = !server.pin.empty() ? server.pin : pin_for(server.base);
+        const auto reply = call(transport, identity, "GET", server.base + "/identity", {},
+                                {.connect_ms = 2500, .timeout_ms = 4000, .pin = pin});
         std::string machine;
         if (reply.status == 200 && parse_identity(reply.body, &machine) &&
             machine == server.machine)
+        {
             check.base = server.base;
+            check.pin = pin;
+        }
     }
     check.ok = !check.base.empty();
     if (!check.ok)
@@ -888,38 +1011,37 @@ bool parse_sections(std::string_view json, std::vector<Section> *sections)
 bool sections(const Transport &transport, const Identity &identity, const Server &server,
               std::vector<Section> *out)
 {
-    const auto reply =
-        call(transport, identity, "GET", server.base + "/library/sections", server.token);
+    const auto reply = ask(transport, identity, server, "/library/sections");
     return reply.status == 200 && parse_sections(reply.body, out);
 }
 
-bool parse_items(std::string_view json, Page *page)
+bool parse_items(std::string_view json, Page *page, std::size_t most)
 {
     if (!page)
         return false;
     *page = {};
     std::string total;
-    const bool ok =
-        read_container(json,
-                       [&](const std::string &key, JsonReader *value)
-                       {
-                           if (key == "totalSize")
-                               return text(value, &total, 24);
-                           if (key != "Metadata" || value->Peek() != '[')
-                               return value->SkipValue();
-                           return ReadArray(value,
-                                            [&](JsonReader *entry)
-                                            {
-                                                if (entry->Peek() != '{')
-                                                    return entry->SkipValue();
-                                                Item item;
-                                                if (!read_item(entry, &item))
-                                                    return false;
-                                                if (!item.rating_key.empty())
-                                                    page->items.push_back(std::move(item));
-                                                return true;
-                                            });
-                       });
+    const bool ok = read_container(
+        json,
+        [&](const std::string &key, JsonReader *value)
+        {
+            if (key == "totalSize")
+                return text(value, &total, 24);
+            if (key != "Metadata" || value->Peek() != '[')
+                return value->SkipValue();
+            return ReadArray(value,
+                             [&](JsonReader *entry)
+                             {
+                                 if (entry->Peek() != '{' || page->items.size() >= most)
+                                     return entry->SkipValue();
+                                 Item item;
+                                 if (!read_item(entry, &item))
+                                     return false;
+                                 if (!item.rating_key.empty())
+                                     page->items.push_back(std::move(item));
+                                 return true;
+                             });
+        });
     page->has_total = !total.empty();
     page->total = static_cast<std::size_t>(number(total));
     if (!ok)
@@ -945,9 +1067,11 @@ bool list_section(const Transport &transport, const Identity &identity, const Se
         query(&parameters, "includeGuids", "0");
         query(&parameters, "X-Plex-Container-Start", start);
         query(&parameters, "X-Plex-Container-Size", page_size);
-        const auto reply = call(transport, identity, "GET", url + parameters, server.token);
+        const auto reply =
+            ask(transport, identity, server, url.substr(server.base.size()) + parameters);
         Page page;
-        if (reply.status != 200 || !parse_items(reply.body, &page))
+        // A page is no longer than asked for, whatever the server sends.
+        if (reply.status != 200 || !parse_items(reply.body, &page, page_size))
             return false;
         const std::size_t received = page.items.size();
         for (auto &item : page.items)
@@ -984,10 +1108,9 @@ bool children(const Transport &transport, const Identity &identity, const Server
     if (!items || rating_key.empty())
         return false;
     items->clear();
-    const auto reply = call(transport, identity, "GET",
-                            server.base + metadata_path(rating_key) + "/children", server.token);
+    const auto reply = ask(transport, identity, server, metadata_path(rating_key) + "/children");
     Page page;
-    if (reply.status != 200 || !parse_items(reply.body, &page))
+    if (reply.status != 200 || !parse_items(reply.body, &page, 10000))
         return false;
     *items = std::move(page.items);
     return true;
@@ -998,10 +1121,9 @@ bool metadata(const Transport &transport, const Identity &identity, const Server
 {
     if (!item || rating_key.empty())
         return false;
-    const auto reply =
-        call(transport, identity, "GET", server.base + metadata_path(rating_key), server.token);
+    const auto reply = ask(transport, identity, server, metadata_path(rating_key));
     Page page;
-    if (reply.status != 200 || !parse_items(reply.body, &page) || page.items.empty())
+    if (reply.status != 200 || !parse_items(reply.body, &page, 1) || page.items.empty())
         return false;
     *item = std::move(page.items.front());
     return true;
@@ -1100,6 +1222,9 @@ std::string transcode_query(const Playback &playback)
     query(&out, "audioBoost", "100");
     query(&out, "session", playback.session);
     query(&out, "X-Plex-Session-Identifier", playback.session);
+    // A resume starts the transcoder there (PlxNative: offset on start, and its decision).
+    if (playback.offset_ms >= 1000)
+        query(&out, "offset", playback.offset_ms / 1000u);
     identity_query(&out, playback.identity);
     query(&out, "X-Plex-Client-Profile-Name", "Generic");
     query(&out, "X-Plex-Client-Profile-Extra", kProfile);
@@ -1174,10 +1299,18 @@ bool prepare(const Transport &transport, Playback *playback, std::uint64_t local
         return false;
     }
     playback->media_index = choice.media_index;
+    // Where the title was left, on any device; a resume point the server does not have yet
+    // (this console's own) when it has none. Both times are bounded (read_item), so the
+    // microseconds fit.
+    out->start_us =
+        item.view_offset_ms && (!item.duration_ms || item.view_offset_ms < item.duration_ms)
+            ? item.view_offset_ms * 1000u
+            : local_start_us;
+    playback->offset_ms = out->start_us / 1000u;
     // The transcoder's session is registered first (PlxNative: a cold start answers 400): it is
     // the fallback when the file plays as it is, and the stream when it does not.
-    const auto decision = call(transport, playback->identity, "GET", decision_url(*playback),
-                               playback->server.token, 5000, 15000);
+    const auto decision = ask(transport, playback->identity, playback->server,
+                              decision_url(*playback).substr(playback->server.base.size()));
     playback->transcode = true;
     if (choice.direct)
     {
@@ -1189,12 +1322,6 @@ bool prepare(const Transport &transport, Playback *playback, std::uint64_t local
     std::string canonical;
     if (iptv::CanonicalizeStreamUrl(transcode_url(*playback), &canonical))
         out->urls.push_back(canonical);
-    // Where the title was left, on any device; a resume point the server does not have yet
-    // (this console's own) when it has none.
-    out->start_us =
-        item.view_offset_ms && (!item.duration_ms || item.view_offset_ms < item.duration_ms)
-            ? item.view_offset_ms * 1000u
-            : local_start_us;
     diag::event("plex: title ready to play %s, transcoder decision http %d, %zu address(es), "
                 "resume at %llu s",
                 out->transcode ? "through the transcoder" : "as it is", decision.status,
@@ -1284,18 +1411,62 @@ std::string scrobble_url(const Playback &playback)
 }
 
 bool report(const Transport &transport, const Playback &playback, State state,
-            std::uint64_t time_ms, std::uint64_t duration_ms)
+            std::uint64_t time_ms, std::uint64_t duration_ms, unsigned timeout_ms,
+            const iptv::http::RequestControl *control)
 {
-    const auto reply = call(transport, playback.identity, "POST",
-                            timeline_url(playback, state, time_ms, duration_ms),
-                            playback.server.token, 3000, state == State::stopped ? 4000 : 6000);
+    const auto reply =
+        call(transport, playback.identity, "POST",
+             timeline_url(playback, state, time_ms, duration_ms), playback.server.token,
+             {.connect_ms = std::min(3000u, timeout_ms),
+              .timeout_ms = timeout_ms,
+              .pin = playback.server.pin,
+              .control = control});
     return reply.status >= 200 && reply.status < 300;
 }
+
+namespace
+{
+// The last requests of a title, on a worker of their own: the menu is not kept waiting.
+struct Farewell
+{
+    Transport transport;
+    Playback playback;
+    std::uint64_t position_us = 0, duration_us = 0;
+    bool completed = false;
+    std::shared_ptr<std::atomic<bool>> done;
+    void run()
+    {
+        const Options brief{.connect_ms = 2000, .timeout_ms = 3000, .pin = playback.server.pin};
+        const bool reached = report(transport, playback, State::stopped, position_us / 1000,
+                                    duration_us / 1000, 3000);
+        // Watched when the app counts it completed (the same check as its own resume point).
+        if (reached && completed)
+            (void)call(transport, playback.identity, "GET", scrobble_url(playback),
+                       playback.server.token, brief);
+        if (reached && playback.transcode)
+            (void)call(transport, playback.identity, "GET", stop_url(playback),
+                       playback.server.token, brief);
+        diag::event("plex: stopped at %llu of %llu s%s%s",
+                    static_cast<unsigned long long>(position_us / 1000000u),
+                    static_cast<unsigned long long>(duration_us / 1000000u),
+                    reached ? "" : ", the server did not answer",
+                    reached && completed ? ", marked watched" : "");
+        done->store(true);
+    }
+    static void *work(void *self)
+    {
+        auto *farewell = static_cast<Farewell *>(self);
+        farewell->run();
+        delete farewell;
+        return nullptr;
+    }
+};
+} // namespace
 
 Timeline::~Timeline()
 {
     if (thread_)
-        finish(last_position_us_, last_duration_us_, false);
+        (void)finish(last_position_us_, last_duration_us_, false);
 }
 
 bool Timeline::start(Playback playback, Sample sample, Transport transport, unsigned interval_ms)
@@ -1304,7 +1475,9 @@ bool Timeline::start(Playback playback, Sample sample, Transport transport, unsi
         return false;
     playback_ = std::move(playback);
     sample_ = std::move(sample);
-    transport_ = transport ? std::move(transport) : platform_transport(nullptr);
+    control_ = {[](void *self) { return static_cast<Timeline *>(self)->stop_.load(); }, this};
+    given_ = transport;
+    transport_ = transport ? std::move(transport) : platform_transport(&control_);
     interval_ms_ = std::max(1u, interval_ms);
     stop_.store(false);
     reports_.store(0);
@@ -1313,16 +1486,32 @@ bool Timeline::start(Playback playback, Sample sample, Transport transport, unsi
     return thread_ != nullptr;
 }
 
-void Timeline::finish(std::uint64_t position_us, std::uint64_t duration_us, bool completed)
+Timeline::Done Timeline::finish(std::uint64_t position_us, std::uint64_t duration_us,
+                                bool completed)
 {
+    auto done = std::make_shared<std::atomic<bool>>(false);
     if (!thread_)
-        return;
-    final_position_us_ = position_us;
-    final_duration_us_ = duration_us;
-    completed_ = completed;
+    {
+        done->store(true);
+        return done;
+    }
+    // A report on its way is stopped (the control), and the worker is left at once.
     stop_.store(true);
     platform::thread_join(thread_);
     thread_ = nullptr;
+    auto *farewell = new Farewell{given_ ? given_ : platform_transport(nullptr),
+                                  playback_,
+                                  position_us ? position_us : last_position_us_,
+                                  duration_us ? duration_us : last_duration_us_,
+                                  completed,
+                                  done};
+    void *worker =
+        platform::thread_start(Farewell::work, farewell, 256u * 1024u, "ptv-plex-stopped");
+    if (worker)
+        (void)platform::thread_detach(worker);
+    else
+        Farewell::work(farewell); // short time limits: the menu waits a few seconds at most
+    return done;
 }
 
 void *Timeline::work(void *self)
@@ -1345,30 +1534,13 @@ void *Timeline::work(void *self)
             t.last_position_us_ = position;
             t.last_duration_us_ = duration;
             (void)report(t.transport_, t.playback_, paused ? State::paused : State::playing,
-                         position / 1000, duration / 1000);
+                         position / 1000, duration / 1000, 6000, &t.control_);
             t.reports_.fetch_add(1);
             next = now_us() + std::uint64_t(t.interval_ms_) * 1000u;
         }
         else
             next = now_us() + std::min<std::uint64_t>(500, t.interval_ms_) * 1000u;
     }
-    const auto position = t.final_position_us_ ? t.final_position_us_ : t.last_position_us_;
-    const auto duration = t.final_duration_us_ ? t.final_duration_us_ : t.last_duration_us_;
-    const bool reached =
-        report(t.transport_, t.playback_, State::stopped, position / 1000, duration / 1000);
-    t.reports_.fetch_add(1);
-    // Plex counts a title watched past 90%; ending it says so at once.
-    const bool watched = t.completed_ || (duration && position >= duration / 10 * 9);
-    if (reached && watched)
-        (void)call(t.transport_, t.playback_.identity, "GET", scrobble_url(t.playback_),
-                   t.playback_.server.token, 3000, 4000);
-    if (reached && t.playback_.transcode)
-        (void)call(t.transport_, t.playback_.identity, "GET", stop_url(t.playback_),
-                   t.playback_.server.token, 3000, 4000);
-    diag::event("plex: stopped at %llu of %llu s%s, %u timeline report(s)",
-                static_cast<unsigned long long>(position / 1000000u),
-                static_cast<unsigned long long>(duration / 1000000u),
-                watched ? ", marked watched" : "", t.reports_.load());
     return nullptr;
 }
 
@@ -1502,6 +1674,9 @@ void SignIn::lookup()
     // The account's own servers first.
     std::stable_sort(list.begin(), list.end(),
                      [](const Resource &a, const Resource &b) { return a.owned > b.owned; });
+    // Each server's candidates are asked at once, and all of them within twenty seconds: a
+    // server not reached by then is left to Find servers.
+    const auto deadline = now_us() + UINT64_C(20000000);
     for (auto &resource : list)
     {
         if (stop_.load())
@@ -1509,8 +1684,13 @@ void SignIn::lookup()
             step_.store(Step::cancelled);
             return;
         }
-        auto base = choose_connection(transport_, identity_, resource);
-        servers_.push_back({std::move(resource), std::move(base)});
+        const auto now = now_us();
+        const auto left = deadline > now ? (deadline - now) / 1000u : 0u;
+        Reached reached;
+        if (left >= 500)
+            reached = choose_connection(transport_, identity_, resource,
+                                        static_cast<unsigned>(std::min<std::uint64_t>(left, 4000)));
+        servers_.push_back({std::move(resource), std::move(reached.base), std::move(reached.pin)});
     }
     diag::event("plex: signed in; %zu server(s)", servers_.size());
     step_.store(Step::done);

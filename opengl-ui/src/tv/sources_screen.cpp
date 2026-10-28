@@ -92,6 +92,8 @@ void SourcesScreen::sync()
         row.title = source_title(source);
         row.subtitle = needs_setup(&source) ? tr("Not set up") : tr(schedule_name(source.schedule));
         row.badge = source.id == model.selected_source_id() ? tr("In use") : "";
+        if (source.kind == 6 && model.plex_reach(source.id) == 0)
+            row.badge = tr("Can't be reached");
         if (source.kind == 2)
         {
             const auto days = account_expiry_notice(source.account, platform::unix_time());
@@ -422,10 +424,14 @@ void SourcesScreen::draw(ui::Canvas &canvas) const
                      fonts.regular.font->fit(tr("Plex account: ") + source->username, 22, width),
                      left, 563, 22, theme.text_muted);
         ui::paragraph(draw, fonts.regular,
-                      tr("Plex movies and TV shows are on the On demand tab. Films play as they "
-                         "are when the PS5 can decode them; others play through the server's "
-                         "transcoder."),
-                      left, 607, 24, width, 34, theme.text_muted, 4);
+                      model.plex_reach(id) == 0
+                          ? tr("Not reached this launch: nothing is sent to it. Press Options "
+                               "to look for it again.")
+                          : tr("Plex movies and TV shows are on the On demand tab. Films play "
+                               "as they are when the PS5 can decode them; others play through "
+                               "the server's transcoder."),
+                      left, 607, 24, width, 34,
+                      model.plex_reach(id) == 0 ? tone::accent : theme.text_muted, 4);
     }
     else if (source->kind == 2)
     {

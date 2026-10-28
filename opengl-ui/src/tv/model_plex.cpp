@@ -52,10 +52,14 @@ void Model::load_plex()
 plex::Server Model::plex_server_for(const SavedSource &source) const
 {
     plex::Server server;
-    const auto found = plex_bases_.find(source.id);
-    server.base = found != plex_bases_.end() && !found->second.empty() ? found->second : source.url;
-    while (!server.base.empty() && server.base.back() == '/')
-        server.base.pop_back();
+    // Only an address this launch found answering for the server: nothing (no poster, no
+    // list, no title, no token) goes to the saved address before then, or after it failed.
+    if (const auto found = plex_bases_.find(source.id);
+        found != plex_bases_.end() && !found->second.base.empty())
+    {
+        server.base = found->second.base;
+        server.pin = found->second.pin;
+    }
     server.token = source.password;
     server.machine = source.mac;
     server.name = source.name;
@@ -63,11 +67,26 @@ plex::Server Model::plex_server_for(const SavedSource &source) const
     return server;
 }
 
+int Model::plex_reach(std::int64_t id) const
+{
+    const auto found = plex_bases_.find(id);
+    return found == plex_bases_.end() ? -1 : found->second.base.empty() ? 0 : 1;
+}
+
 void Model::configure_vod(const SavedSource &source)
 {
     if (source.kind == 6)
     {
-        vod_.configure_plex(plex_server_, plex_identity_, cache_path(active_source_), schedule_);
+        // Not reached this launch: the saved lists alone, with nothing to send anywhere.
+        auto server = plex_server_;
+        if (!server.valid())
+        {
+            server.base.clear();
+            server.pin.clear();
+            server.token.clear();
+        }
+        vod_.configure_plex(std::move(server), plex_identity_, cache_path(active_source_),
+                            schedule_);
         return;
     }
     vod_.configure(source.kind == 2 ? xtream_ : iptv::XtreamCredentials{},
@@ -163,6 +182,7 @@ void Model::commit_plex_sign_in(const plex::SignIn &done)
         return;
     }
     std::int64_t first = 0;
+    unsigned unreached = 0;
     for (const auto &found : done.servers())
     {
         SavedSource source;
@@ -174,6 +194,15 @@ void Model::commit_plex_sign_in(const plex::SignIn &done)
                 existing = true;
                 break;
             }
+        // Only an address that answered for the server is ever saved: one that did not is
+        // left for Find servers, and one kept from before says it cannot be reached.
+        if (found.base.empty())
+        {
+            ++unreached;
+            if (existing)
+                plex_bases_[source.id] = {};
+            continue;
+        }
         source.kind = 6;
         source.name = short_name(found.resource.name.empty() ? "Plex" : found.resource.name);
         source.username = plex_account_.name;
@@ -181,16 +210,15 @@ void Model::commit_plex_sign_in(const plex::SignIn &done)
         source.mac = found.resource.machine;
         // A server kept from before keeps its address; where it is now is this launch's.
         if (!existing)
-        {
-            const auto list = plex::candidates(found.resource);
-            source.url = !found.base.empty() ? found.base : list.empty() ? std::string() : list[0];
-        }
+            source.url = found.base;
         if (!valid_source(source) || !library_.save_source(&source))
         {
             diag::event("plex: a server could not be saved as a source");
             continue;
         }
-        plex_bases_[source.id] = found.base;
+        plex_bases_[source.id] = {found.base, found.pin};
+        if (!found.pin.empty())
+            platform::pin_host(found.pin);
         if (!first)
             first = source.id;
     }
@@ -198,11 +226,19 @@ void Model::commit_plex_sign_in(const plex::SignIn &done)
     ++revision_;
     if (!first)
     {
-        notify(Level::warning, tr("No Plex server found"),
-               tr("This Plex account has no server this console can use."));
+        if (unreached)
+            notify(Level::warning, tr("No Plex server could be reached"),
+                   tr("Find servers adds them once they can be reached."));
+        else
+            notify(Level::warning, tr("No Plex server found"),
+                   tr("This Plex account has no server this console can use."));
         return;
     }
-    notify(Level::ready, tr("Signed in to Plex"), tr("Your Plex servers are in Sources."));
+    if (unreached)
+        notify(Level::warning, tr("Some Plex servers could not be reached"),
+               tr("Find servers adds them once they can be reached."));
+    else
+        notify(Level::ready, tr("Signed in to Plex"), tr("Your Plex servers are in Sources."));
     use_saved_source(first);
 }
 
@@ -218,18 +254,19 @@ bool Model::plex_sign_out()
     }
     plex_cancel_sign_in();
     const bool was_selected = active_source_ == iptv::SourceKind::Plex;
-    bool removed = library_.ready();
-    for (const auto &source : library_.sources())
-        if (source.kind == 6)
-            removed = library_.remove_source(source.id) && removed;
+    // Overwritten where they lay, not only unlinked: the servers' tokens leave the file.
+    const bool removed = library_.ready() && library_.remove_sources_securely(6);
     sources_ = library_.sources();
     plex_account_.token.clear();
     plex_account_.name.clear();
-    const bool saved = plex::save_account(path(kPlexFile), plex_account_);
     plex_bases_.clear();
+    plex_server_ = {};
+    // Signed out from now on, and at the next start too: a file that keeps the token and
+    // cannot be rewritten is removed (the console gets a new identifier next time).
+    const auto file = path(kPlexFile);
+    const bool saved = plex::save_account(file, plex_account_) || std::remove(file.c_str()) == 0;
     if (was_selected)
     {
-        plex_server_ = {};
         const SavedSource *next = nullptr;
         for (const auto &source : sources_)
             if (source.kind >= 1 && source.kind <= 6 && !source.url.empty())
@@ -261,7 +298,9 @@ void Model::consume_plex_check()
     const auto id = refresh_saved_source_id_;
     const unsigned slot = static_cast<unsigned>(iptv::SourceKind::Plex);
     const bool ok = pending_plex_.ok;
-    plex_bases_[id] = ok ? pending_plex_.base : std::string();
+    plex_bases_[id] = ok ? plex::Reached{pending_plex_.base, pending_plex_.pin} : plex::Reached{};
+    if (ok && !pending_plex_.pin.empty())
+        platform::pin_host(pending_plex_.pin);
     diag::event("plex: server check %s", ok ? "found the server" : "did not reach the server");
     if (const auto *source = saved_source(id); source && source->kind == 6 && ok)
     {
@@ -281,7 +320,7 @@ void Model::consume_plex_check()
         plex_server_ = plex_server_for(*source);
         configure_vod(*source);
     }
-    health_[slot] = ok ? SourceHealth::ready : SourceHealth::stale;
+    health_[slot] = ok ? SourceHealth::ready : SourceHealth::error;
     if (ok)
     {
         set_status(tr("Plex"), Level::ready);

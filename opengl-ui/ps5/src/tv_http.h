@@ -21,6 +21,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct curl_slist;
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -59,6 +61,12 @@ extern "C"
     int tv_http_read(int request_id, void *data, size_t size);
     /* From any thread: the request's send or read gives up. */
     int tv_http_abort(int request_id);
+
+    /* "host:port:address": every handle of the app dials that host at that address from now
+     * on (CURLOPT_RESOLVE); a later entry for the same host and port replaces the earlier. */
+    void tv_http_pin(const char *entry);
+    /* The pins as a new list for CURLOPT_RESOLVE (curl_slist_free_all it); null when none. */
+    struct curl_slist *tv_http_resolve_list(void);
 
 #ifdef __cplusplus
 }

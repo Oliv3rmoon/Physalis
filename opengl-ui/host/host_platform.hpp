@@ -51,9 +51,12 @@ struct ApiRecord
 {
     std::string method, url;
     std::vector<std::string> headers;
+    std::vector<std::string> resolve{};
 };
 // Every API request since reset(), in order.
 std::vector<ApiRecord> api_requests();
+// What platform::pin_host was given, latest per host and port.
+std::vector<std::string> pinned_hosts();
 // The headers the last fetch of this picture carried.
 std::vector<std::string> image_headers(const std::string &url);
 // How many bytes of lists were handed over, all downloads together.

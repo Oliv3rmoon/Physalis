@@ -1673,13 +1673,6 @@ int main()
                 });
         const PlaybackOutcome outcome =
             play_candidates(request, script.watch_ms(), nullptr, resume ? &*resume : nullptr);
-        if (request.plex.active())
-        {
-            iptv_player_media_state_t media{};
-            iptv_player_media_state(&media);
-            plex_timeline.finish(media.position_us, media.duration_us,
-                                 outcome.result == 0 && !viewing_blocked);
-        }
         (void)model.viewing_tick(false);
         if (viewing_blocked)
         {
@@ -1775,6 +1768,12 @@ int main()
             selected_quality = reduction;
             automatic_quality = true;
         }
+        // The server's last reports go on a worker of their own; watched is the same check
+        // as this console's own resume point below.
+        if (request.plex.active())
+            (void)plex_timeline.finish(media.position_us, media.duration_us,
+                                       outcome.result == 0 && !viewing_blocked &&
+                                           phone.selected.empty() && !selected_quality);
         if ((media.presented || outcome.result == 0) &&
             model.finish_vod(request, media.position_us, media.duration_us,
                              outcome.result == 0 && !viewing_blocked && phone.selected.empty() &&
