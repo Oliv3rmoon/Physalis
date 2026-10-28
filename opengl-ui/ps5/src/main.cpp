@@ -507,7 +507,11 @@ bool run_menu(ptv::Model &model, ptv::Settings *settings, const LastPlayback &la
         std::int64_t previous = sys::monotonic_us();
         std::int64_t last_frame_start = previous;
         ptv::PortalResolveJob portal_link;
+        // A Plex title: the server is asked what to play (its file, or its transcoder).
+        ptv::plex::PlayJob plex_link;
+        bool plex_resolving = false;
         StorageJob storage;
+        // A portal's link or a Plex title being resolved: the tuning screen shows meanwhile.
         bool resolving_portal = false;
         float portal_age = 0;
         while (!chosen)
@@ -681,6 +685,23 @@ bool run_menu(ptv::Model &model, ptv::Settings *settings, const LastPlayback &la
                 queued = false;
             if (chosen)
                 app.stop_preview();
+            if (chosen && request->plex.active())
+            {
+                // As for a portal: the menu's picture and controller stay alive while the
+                // server answers.
+                model.close();
+                chosen = false;
+                portal_age = 0;
+                plex_resolving = plex_link.start(request->plex, request->start_position_us);
+                resolving_portal = plex_resolving;
+                if (!resolving_portal)
+                {
+                    model.open();
+                    model.report_playback_failure(request->channel_id.c_str(),
+                                                  request->channel_name.c_str(), -1, 0,
+                                                  ptv::tr("The Plex server could not be asked."));
+                }
+            }
             if (chosen && !request->portal_command.empty())
             {
                 // Leave the menu's picture and controller alive while the
@@ -702,7 +723,30 @@ bool run_menu(ptv::Model &model, ptv::Settings *settings, const LastPlayback &la
                 portal_age += dt;
                 const bool cancelled =
                     input.is_pressed(Action::back) || input.is_pressed(Action::menu);
-                if (cancelled || portal_link.done())
+                if (plex_resolving && (cancelled || plex_link.done()))
+                {
+                    plex_link.cancel();
+                    resolving_portal = plex_resolving = false;
+                    if (!cancelled && plex_link.succeeded())
+                    {
+                        request->urls = plex_link.prepared().urls;
+                        request->start_position_us = plex_link.prepared().start_us;
+                        request->plex = plex_link.playback();
+                        request->extra_headers = ptv::plex::player_headers(request->plex);
+                        request->credential_origin = request->plex.server.base;
+                        chosen = true;
+                    }
+                    else
+                    {
+                        model.open();
+                        if (!cancelled)
+                            model.report_playback_failure(
+                                request->channel_id.c_str(), request->channel_name.c_str(), -1, 1,
+                                ptv::tr(plex_link.prepared().error.c_str()));
+                        *request = {};
+                    }
+                }
+                else if (!plex_resolving && (cancelled || portal_link.done()))
                 {
                     portal_link.cancel();
                     resolving_portal = false;
@@ -1295,6 +1339,7 @@ int main()
     }
     auto owned_model =
         std::make_unique<ptv::Model>(tv::storage::config_dir(), tv::storage::cache_dir());
+    owned_model->set_app_version(read_content_version(tv::storage::app_file("sce_sys/param.json")));
     if (recovered_crash)
         owned_model->resume_last(false);
     ptv::Settings settings = ptv::load_settings(tv::storage::config_dir());
@@ -1384,7 +1429,7 @@ int main()
         std::string storage_result;
         // A quality restart reuses its already resolved portal URL and credentials.
         // Other portal switches still use the cancellable create_link screen.
-        if ((!switching || (!resume && !request.portal_command.empty())) &&
+        if ((!switching || (!resume && !request.portal_command.empty()) || request.plex.active()) &&
             !run_menu(model, &settings, last, &request, script, menu_notice, &storage_result))
             sys::park();
         menu_notice.clear();
@@ -1399,6 +1444,8 @@ int main()
             }
             owned_model =
                 std::make_unique<ptv::Model>(tv::storage::config_dir(), tv::storage::cache_dir());
+            owned_model->set_app_version(
+                read_content_version(tv::storage::app_file("sce_sys/param.json")));
             owned_model->view.tab = 5; // Return to Settings after reloading the saved state.
             owned_model->sleep_timer = sleep_timer;
             owned_model->resume_last(false);
@@ -1608,8 +1655,31 @@ int main()
         if (script.active())
             iptv_input_schedule_start(); // "during" steps count from here
         ptv::crash::phase(ptv::crash::Phase::playback);
+        // A Plex title tells its server where it is every ten seconds, and when it stops.
+        ptv::plex::Timeline plex_timeline;
+        if (request.plex.active())
+            (void)plex_timeline.start(
+                request.plex,
+                [](std::uint64_t *position, std::uint64_t *duration, bool *paused)
+                {
+                    iptv_player_media_state_t media{};
+                    iptv_player_media_state(&media);
+                    if (!media.available || !media.presented)
+                        return false;
+                    *position = media.position_us;
+                    *duration = media.duration_us;
+                    *paused = media.paused != 0;
+                    return true;
+                });
         const PlaybackOutcome outcome =
             play_candidates(request, script.watch_ms(), nullptr, resume ? &*resume : nullptr);
+        if (request.plex.active())
+        {
+            iptv_player_media_state_t media{};
+            iptv_player_media_state(&media);
+            plex_timeline.finish(media.position_us, media.duration_us,
+                                 outcome.result == 0 && !viewing_blocked);
+        }
         (void)model.viewing_tick(false);
         if (viewing_blocked)
         {
