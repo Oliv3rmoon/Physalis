@@ -865,7 +865,7 @@ bool Model::ask_query()
     if (!keyboard_ready_)
     {
         notify(Level::warning, tr("The keyboard is not available"),
-               tr("Close ProsperoTV and open it again."));
+               tr("Close Nightshade TV and open it again."));
         return false;
     }
     iptv_ime_request_prompt(query_.c_str(), tr("Search channels or programmes on now"),
@@ -1155,7 +1155,7 @@ void Model::use_source(iptv::SourceKind source)
     if (iptv::SaveActiveSource(path("iptv-active-source-v1.txt"), source) !=
         iptv::SourceStateStatus::ok)
         notify(Level::warning, tr("The choice could not be saved"),
-               tr("It holds until ProsperoTV is closed."));
+               tr("It holds until Nightshade TV is closed."));
     else if (changed)
         notify(Level::ready, std::string(tr("Now using ")) + source_name(source));
     set_source_text(std::string(tr("Using ")) + source_name(source),
@@ -1179,7 +1179,7 @@ void Model::edit_source(iptv::SourceKind source)
     if (!keyboard_ready_)
     {
         notify(Level::warning, tr("The keyboard is not available"),
-               tr("Close ProsperoTV and open it again."));
+               tr("Close Nightshade TV and open it again."));
         return;
     }
     editing_source_id_ = static_cast<int>(source) + 1;
@@ -1760,10 +1760,10 @@ void Model::consume_refresh()
                             ? count + tr(" from ") + source_name(refresh_source_) + "."
                             : count +
                                   tr(". The console's storage refused the copy, so it lasts until "
-                                     "ProsperoTV is closed."));
+                                     "Nightshade TV is closed."));
         notify(pending_saved_ ? Level::ready : Level::warning, tr("Channel list updated"), count);
         if (pending_report_.catalog_full)
-            notify(Level::warning, tr("This source has more channels than ProsperoTV holds"),
+            notify(Level::warning, tr("This source has more channels than Nightshade TV holds"),
                    tr("Showing its first ") + group_digits(channel_count()) + ".");
     }
     else

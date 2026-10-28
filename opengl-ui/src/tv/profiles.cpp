@@ -56,7 +56,7 @@ bool prepare_profile(const std::string &root, const std::string &legacy_config,
     paths = {};
     if (user_id < 0)
     {
-        error = "The console user could not be identified. Reopen ProsperoTV from your user.";
+        error = "The console user could not be identified. Reopen Nightshade TV from your user.";
         return false;
     }
     char identity[16];

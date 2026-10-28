@@ -344,7 +344,7 @@ bool restore_settings(const std::string &directory, const std::string &archive, 
         return false;
     if (!read_archive(archive, next))
     {
-        error = "This is not a complete, valid ProsperoTV backup. No settings were changed.";
+        error = "This is not a complete, valid Nightshade TV backup. No settings were changed.";
         return false;
     }
     if (!read_files(directory, before) || !write_archive(directory + kJournal, before))

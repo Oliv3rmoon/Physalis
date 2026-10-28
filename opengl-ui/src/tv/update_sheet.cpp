@@ -457,7 +457,7 @@ void UpdateSheet::update(float dt, ui::Feedback &feedback)
             platform::update_finish();
             if (stage_ == Stage::cancelling)
                 shared_.toasts.push(ui::StatusKind::info, tr("Update cancelled"),
-                                    tr("ProsperoTV is as it was."));
+                                    tr("Nightshade TV is as it was."));
             close();
             break;
         default:
@@ -643,7 +643,7 @@ void UpdateSheet::draw_notes(ui::Canvas &canvas, const Rect &panel) const
     list.push_opacity(mix);
     ui::text(list, fonts.semibold, tr("WHAT'S NEW"), x, panel.y + 70.0f, 17.0f, tone::accent,
              gfx::Align::left, 4.0f);
-    paint.heading("ProsperoTV " + spoken(offer_.version), x - 2.0f, panel.y + 122.0f, 44.0f);
+    paint.heading("Nightshade TV " + spoken(offer_.version), x - 2.0f, panel.y + 122.0f, 44.0f);
 
     Rect window = notes_window();
     window.y = panel.y + kNotesTop;
@@ -781,7 +781,7 @@ void UpdateSheet::draw(ui::Canvas &canvas) const
         list.push_transform(1.0f, 0.0f, 0.0f, slide, 0.0f);
 
         const char *kicker = tr("UPDATE AVAILABLE");
-        std::string title = "ProsperoTV " + spoken(offer_.version);
+        std::string title = "Nightshade TV " + spoken(offer_.version);
         std::string body;
         std::string detail;
         switch (stage_)
@@ -819,13 +819,13 @@ void UpdateSheet::draw(ui::Canvas &canvas) const
         case Stage::cancelling:
             kicker = tr("UPDATING");
             title = tr("Stopping");
-            body = tr("Nothing was changed. ProsperoTV stays as it is.");
+            body = tr("Nothing was changed. Nightshade TV stays as it is.");
             break;
         case Stage::closing:
             kicker = tr("READY");
             title = tr("Version ") + spoken(offer_.version) + tr(" is ready");
             body =
-                tr("ProsperoTV closes now and the new version takes its place. Open it again from "
+                tr("Nightshade TV closes now and the new version takes its place. Open it again from "
                    "the home screen.");
             break;
         case Stage::failed:

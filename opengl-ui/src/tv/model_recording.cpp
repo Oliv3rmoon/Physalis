@@ -57,7 +57,7 @@ bool Model::schedule_programme(unsigned index, const Programme &p, bool record)
         return false;
     }
     announce(Level::ready, tr(record ? "Recording scheduled" : "Reminder set"),
-             tr("Keep ProsperoTV running; the console cannot wake for a programme."), 5);
+             tr("Keep Nightshade TV running; the console cannot wake for a programme."), 5);
     next_job_check_ = 0;
     poll_programme_jobs();
     return true;

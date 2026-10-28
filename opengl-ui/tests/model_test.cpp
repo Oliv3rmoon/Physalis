@@ -737,7 +737,7 @@ TEST_F(ModelTest, ASourceWithMoreChannelsThanTheAppHoldsKeepsItsFirstOnesAndSays
     ASSERT_EQ(notices.size(), 2u);
     EXPECT_EQ(notices[0].body, "250,000 channels");
     EXPECT_EQ(notices[1].level, ptv::Level::warning);
-    EXPECT_EQ(notices[1].title, "This source has more channels than ProsperoTV holds");
+    EXPECT_EQ(notices[1].title, "This source has more channels than Nightshade TV holds");
     EXPECT_EQ(notices[1].body, "Showing its first 250,000.");
     model.close();
 }

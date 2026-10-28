@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later */
 R"REMOTE(<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#190807"><title>ProsperoTV Remote</title>
+<meta name="theme-color" content="#190807"><title>Nightshade TV Remote</title>
 <link rel="icon" type="image/png" href="/icon.png"><link rel="apple-touch-icon" href="/icon.png">
 <style>
 :root{color-scheme:dark;font:16px system-ui,sans-serif;background:#190807;color:#fff2df}
@@ -23,7 +23,7 @@ button:disabled{opacity:.5;cursor:wait}.primary{background:#ff9445;color:#190807
 fieldset{border:0;padding:0;margin:0;min-width:0}[hidden]{display:none!important}footer{text-align:center;color:#d3b6a8;font-size:12px;margin-top:20px}
 input[type=range]{padding:0;min-height:44px;accent-color:#ff9445;cursor:pointer}output{float:right;font-variant-numeric:tabular-nums}
 </style></head><body><main>
-<header><img class="logo" src="/icon.png" width="56" height="56" alt=""><div><h1>ProsperoTV</h1><p>Your phone. Your remote.</p></div></header>
+<header><img class="logo" src="/icon.png" width="56" height="56" alt=""><div><h1>Nightshade TV</h1><p>Your phone. Your remote.</p></div></header>
 <p id="status" role="status" aria-live="polite">Pair with the code on your TV</p>
 <form id="pair" class="card"><label for="pin">TV PAIRING CODE</label>
 <input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required placeholder="6-digit code">
@@ -41,7 +41,7 @@ input[type=range]{padding:0;min-height:44px;accent-color:#ff9445;cursor:pointer}
 <div class="row"><button data-key="pause">Pause / resume live TV</button><button data-key="live">Back to live</button></div>
 <div class="row"><button data-key="tracks">Audio &amp; subtitles</button><button data-key="channels">Channel list</button></div>
 <p class="muted">During live playback, Left and Right move through the retained programme in 30-second steps.</p>
-<div class="card"><label for="volume">VOLUME <output id="volume-value" for="volume">100%</output></label><input id="volume" type="range" min="0" max="100" step="1" value="100" aria-valuetext="100 percent"><p class="muted">Controls ProsperoTV sound. Set to 0 to mute.</p></div>
+<div class="card"><label for="volume">VOLUME <output id="volume-value" for="volume">100%</output></label><input id="volume" type="range" min="0" max="100" step="1" value="100" aria-valuetext="100 percent"><p class="muted">Controls Nightshade TV sound. Set to 0 to mute.</p></div>
 <form id="search" class="card"><label for="query">FIND A CHANNEL</label>
 <input id="query" type="search" maxlength="78" enterkeyhint="search" autocomplete="off" placeholder="Type with your phone keyboard">
 <div class="row"><button class="primary" type="submit">Search on TV</button><button id="clear" type="button">Clear</button></div>
@@ -79,7 +79,7 @@ input[type=range]{padding:0;min-height:44px;accent-color:#ff9445;cursor:pointer}
 <div class="row"><button id="source-remove" type="button">Remove source</button></div>
 </form></div></section>
 <button id="disconnect" type="button" style="width:100%">Forget this phone</button>
-</fieldset><footer>Local network remote · ProsperoTV</footer></main>
+</fieldset><footer>Local network remote · Nightshade TV</footer></main>
 <script>
 const $=id=>document.getElementById(id);
 let paired=false,busy=false,volumeEditing=false,volumePending=null,volumeSending=false;

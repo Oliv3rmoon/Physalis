@@ -1060,7 +1060,7 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
         else
         {
             announcements_.push(ui::StatusKind::info,
-                                "ProsperoTV " + offer.version + tr(" is available"),
+                                "Nightshade TV " + offer.version + tr(" is available"),
                                 tr("Get it from GitHub."), 10.0f);
         }
     }
@@ -1328,21 +1328,28 @@ void App::draw_header(ui::Canvas &canvas) const
 {
     gfx::DrawList &list = canvas.list;
     const ui::Fonts &fonts = canvas.fonts;
-    draw_mark(list, kMargin + 22.0f, kHeaderY, 42.0f);
-    ui::text(list, fonts.display, "ProsperoTV", kMargin + 58.0f, baseline_for(kHeaderY, 30.0f),
-             shared_.settings.larger_text ? 24.0f : 30.0f, shared_.theme.text);
-
-    tabs_.draw(canvas);
-    const ui::GlyphStyle glyphs = ui::GlyphStyle::dark();
     const Rect first = tabs_.tab_rect(fonts, 0);
     const Rect last = tabs_.tab_rect(fonts, kTabCount - 1);
     const Rect lens{first.x - 62.0f, kHeaderY - 22.0f, 44.0f, 44.0f};
+    const float l1 = ui::button_width(ui::Button::l1, 34.0f);
+    // The name stays clear of the L1 hint before the search lens: a little smaller if need be.
+    const char *name = "Nightshade TV";
+    const float room = lens.x - l1 - 16.0f - 12.0f - (kMargin + 58.0f);
+    float name_size = shared_.settings.larger_text ? 24.0f : 30.0f;
+    if (fonts.display.font != nullptr)
+        if (const float wide = fonts.display.measure(name, name_size); wide > room && wide > 0.0f)
+            name_size *= room / wide;
+    draw_mark(list, kMargin + 22.0f, kHeaderY, 42.0f);
+    ui::text(list, fonts.display, name, kMargin + 58.0f, baseline_for(kHeaderY, name_size),
+             name_size, shared_.theme.text);
+
+    tabs_.draw(canvas);
+    const ui::GlyphStyle glyphs = ui::GlyphStyle::dark();
     ui::Painter paint(list, fonts, shared_.theme, canvas.glass);
     paint.focus_ring(lens, lens.h * 0.5f, search_focus_.value);
     const gfx::Color ink = search_focused_ ? shared_.theme.text : shared_.theme.text_muted;
     list.ring(lens.cx() - 3.0f, lens.cy() - 3.0f, 9.0f, 2.5f, ink);
     list.line(lens.cx() + 4.0f, lens.cy() + 4.0f, lens.cx() + 11.0f, lens.cy() + 11.0f, 3.0f, ink);
-    const float l1 = ui::button_width(ui::Button::l1, 34.0f);
     ui::draw_button(list, fonts, glyphs, ui::Button::l1, lens.x - l1 - 16.0f, kHeaderY, 34.0f);
     ui::draw_button(list, fonts, glyphs, ui::Button::r1, last.x + last.w + 20.0f, kHeaderY, 34.0f);
     draw_status(canvas);
@@ -1394,7 +1401,7 @@ void App::draw_settings(ui::Canvas &canvas) const
     fact(tr("Favorites"), group_digits(model.group_size(Group::favorites)));
     fact(tr("Recent channels"), group_digits(model.group_size(Group::recent)));
     ui::paragraph(list, fonts.regular,
-                  tr("Who made ProsperoTV, and how channels get here, is on the About tab."), x,
+                  tr("Who made Nightshade TV, and how channels get here, is on the About tab."), x,
                   y + 76.0f, 21.0f, right - x, 30.0f, theme.text_muted, 3);
     list.pop_transform();
     list.pop_opacity();
@@ -1468,23 +1475,23 @@ void App::draw_about(ui::Canvas &canvas) const
     // The mark, name and version sit top right, level with the kicker; the
     // paragraph starts beside them and widens once past.
     const float right = x + width;
-    const float name_left = right - paint.heading_width("ProsperoTV", 40.0f);
+    const float name_left = right - paint.heading_width("Nightshade TV", 40.0f);
     draw_mark(list, name_left - 54.0f, y + 20.0f, 68.0f);
-    paint.heading("ProsperoTV", right, y + 20.0f, 40.0f, gfx::Align::right);
+    paint.heading("Nightshade TV", right, y + 20.0f, 40.0f, gfx::Align::right);
     ui::text(list, fonts.mono, tr("Version ") + version_, right, y + 54.0f, 20.0f, theme.text_muted,
              gfx::Align::right);
     const float clear_x = name_left - 116.0f;
     const float clear_bottom = y + 62.0f;
     y += 36.0f;
-    beside(tr("Live television for PS5 homebrew, brought to you by BlackBearReloaded and carried "
-              "on by ThatGuyKalvin. Unofficial, and free software under the GNU General Public "
-              "License, version 3 or later."),
+    beside(tr("Nightshade TV is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. "
+              "ProsperoTV is carried on by ThatGuyKalvin. Unofficial, and free software under the "
+              "GNU General Public License, version 3 or later."),
            clear_x, clear_bottom, 23.0f);
     rule();
     kicker(tr("THANKS"));
     words(tr("Thanks to JMUtechnologies for testing and feedback, as well as Bastian-R-dotcom, to "
              "the whole PS5 homebrew community, and to every developer whose tools and libraries "
-             "make ProsperoTV possible."),
+             "make Nightshade TV possible."),
           theme.text, 3);
     ui::text(list, fonts.regular, tr("Menu sound effects made with ElevenLabs."), x,
              kCreditsPanel.y + kCreditsPanel.h - 36.0f, 19.0f, theme.text_muted);
@@ -1523,7 +1530,7 @@ void App::draw_about(ui::Canvas &canvas) const
         theme.text, 3);
     rule();
     kicker(tr("GOOD TO KNOW"));
-    words(tr("ProsperoTV hosts no streams of its own: every channel plays from the address its "
+    words(tr("Nightshade TV hosts no streams of its own: every channel plays from the address its "
              "playlist gives, and channels come and go without notice. Your sources, favorites and "
              "recent channels stay on this console."),
           theme.text, 4);
@@ -1757,7 +1764,7 @@ void App::draw(Frame &frame, bool themed) const
                  kWidth / 2, 490, 40, shared_.theme.text, gfx::Align::center);
         ui::text(over.list, over.fonts.regular,
                  storage_action_ == StorageAction::share_import
-                     ? tr("Keep ProsperoTV open until this finishes.")
+                     ? tr("Keep Nightshade TV open until this finishes.")
                      : tr("Keep the drive connected until this finishes."),
                  kWidth / 2, 555, 26, shared_.theme.text_muted, gfx::Align::center);
         over.list.arc(kWidth / 2, 635, 22, 4, shared_.clock * 4, 2.2f, tone::accent);
@@ -1821,7 +1828,7 @@ void App::draw_intro(ui::Canvas &canvas) const
         list.push_opacity(mark);
         list.circle(screen.cx(), screen.cy() - 26.0f, 150.0f, kWhite.with_alpha(0.06f));
         draw_mark(list, screen.cx(), screen.cy() - 34.0f, 132.0f);
-        ui::text(list, shared_.fonts.display, "ProsperoTV", screen.cx(), screen.cy() + 96.0f, 54.0f,
+        ui::text(list, shared_.fonts.display, "Nightshade TV", screen.cx(), screen.cy() + 96.0f, 54.0f,
                  kWhite.with_alpha(0.96f), gfx::Align::center);
         list.pop_opacity();
         // The tube warming up: white first, then the colour comes through.
