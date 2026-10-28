@@ -157,7 +157,7 @@ void UpdateSheet::layout_notes()
     {
         y += 20.0f;
         NoteLine out;
-        out.text = tr("The rest is on the app's page on prosperostore.net.");
+        out.text = tr("The rest is on the app's page on GitHub.");
         out.y = y;
         out.size = kNotesText;
         out.muted = true;
@@ -788,7 +788,7 @@ void UpdateSheet::draw(ui::Canvas &canvas) const
         {
         case Stage::offer:
             body =
-                tr("A newer version is on prosperostore.net. It downloads and installs here; your "
+                tr("A newer version is on GitHub. It downloads and installs here; your "
                    "sources, favorites and settings stay as they are.");
             if (offer_.size > 0)
                 detail = megabytes(offer_.size) + tr(" download");

@@ -7,8 +7,9 @@
 namespace tv
 {
 
-// Asks prosperostore.net whether a newer ProsperoTV is listed, on a thread of its
-// own; only the first call of a launch does anything. The interface hears the
+// Asks GitHub whether Oliv3rmoon/Nightshade-TV has a newer release (the build's
+// TV_UPDATE_REPOSITORY), on a thread of its own; only the first call of a launch
+// does anything. The interface hears the
 // answer through ptv::platform::update_take().
 void start_update_check();
 

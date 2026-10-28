@@ -54,8 +54,8 @@ bool fetch_image(const char *url, std::vector<std::uint8_t> *bytes,
                  const iptv::http::RequestControl *control);
 
 // ---- updates ----
-// Once per launch the machine asks prosperostore.net whether a newer ProsperoTV is
-// listed (the console: ps5/src/tv_update.cpp), and can replace the app with
+// Once per launch the machine asks GitHub whether Oliv3rmoon/Nightshade-TV has a
+// newer release (the console: ps5/src/tv_update.cpp), and can replace the app with
 // it: the release is downloaded and unpacked beside the app, and its files
 // take the place of the old ones once the app has closed. Nothing is changed
 // before update_apply(), and a cancel or a failure leaves the app as it was.
@@ -65,11 +65,11 @@ struct UpdateOffer
     std::string version;      // the release's name, for the screen
     std::string installed;    // this build's content version
     std::string available;    // the release's content version
-    std::uint64_t size = 0;   // the download in bytes; 0 when the catalog does not say
-    // What the developer wrote on the release, as the catalog gives it: plain
-    // text, lines split by \n, list items starting "- ". Empty when it has none.
+    std::uint64_t size = 0;   // the download in bytes; 0 when the release does not say
+    // What the developer wrote on the release, as plain text: lines split by
+    // \n, list items starting "- ". Empty when it has none.
     std::string notes;
-    bool notes_truncated = false; // the catalog cut them; the rest is on the app's page
+    bool notes_truncated = false; // they were cut; the rest is on the release's page
 };
 enum class UpdatePhase : std::uint8_t
 {

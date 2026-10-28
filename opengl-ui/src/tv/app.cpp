@@ -1061,7 +1061,7 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
         {
             announcements_.push(ui::StatusKind::info,
                                 "ProsperoTV " + offer.version + tr(" is available"),
-                                tr("Get it from prosperostore.net."), 10.0f);
+                                tr("Get it from GitHub."), 10.0f);
         }
     }
 

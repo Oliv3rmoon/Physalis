@@ -416,7 +416,7 @@ if test_title:
     param["contentId"] = f"UP9000-{test_title}_00-PROSPEROTVUITEST"
     for language in param["localizedParameters"].values():
         if isinstance(language, dict):
-            language["titleName"] = "ProsperoTV UI test"
+            language["titleName"] = "Nightshade TV UI test"
     # A test title can carry another version, to be the "newer release" of an
     # update test (tools/console-run.py, UPDATED_APP).
     test_version = os.environ.get("TV_TEST_VERSION", "")
@@ -450,11 +450,25 @@ if True:
          '        wrap_options+=("--wrap=$symbol")\n'
          '    done\n'
          'fi\n')
+# ---- Nightshade TV: the update check asks this GitHub repository's releases
+#      (src/update_kit/github_release.h), never the catalog, which lists
+#      ProsperoTV's own. TV_UPDATE_REPOSITORY=<owner>/<name> names another one
+#      (a fork's test builds); ProsperoTV's own repositories are refused, since
+#      an update from them would undo the branding.
+update_repository = os.environ.get("TV_UPDATE_REPOSITORY", "Oliv3rmoon/Nightshade-TV")
+owner, _, name = update_repository.partition("/")
+if not (re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", owner)
+        and re.fullmatch(r"[A-Za-z0-9._-]{1,100}", name) and name not in (".", "..")):
+    sys.exit(f"TV_UPDATE_REPOSITORY must be a GitHub repository as owner/name, not {update_repository!r}")
+if update_repository.lower() in ("blackbearreloaded/prosperotv", "thatguykalvin/prosperotv"):
+    sys.exit(f"TV_UPDATE_REPOSITORY may not be ProsperoTV's own repository ({update_repository})")
 # The test title also reads scripted runs a PC leaves beside it.
 (tree / "src/tv_build_options.h").write_text(
     "// ProsperoTV - What this build includes (written by ps5/patch_tree.py).\n#pragma once\n\n"
     f"#define TV_DEV_SCRIPTS {1 if test_title else 0}\n"
     f"#define TV_DEBUG_TRACE {1 if debug_trace else 0}\n"
     "// The title this build installs as: its folder and its Lapy helper carry it.\n"
-    f"#define TV_TITLE_ID \"{param['titleId']}\"\n", encoding="utf-8", newline="\n")
-print("tree patched, category", category, "title", param["titleId"])
+    f"#define TV_TITLE_ID \"{param['titleId']}\"\n"
+    "// The GitHub repository whose releases the update check asks (update_kit/github_release.h).\n"
+    f"#define TV_UPDATE_REPOSITORY \"{update_repository}\"\n", encoding="utf-8", newline="\n")
+print("tree patched, category", category, "title", param["titleId"], "updates from", update_repository)

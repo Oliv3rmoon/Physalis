@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Both are the PS5 Native App Boilerplate's self-update kit (update_kit/, see
-// its README.md). The check fetches the catalog's signed manifest and the
-// app's own entry from prosperostore.net, verifies the Ed25519 signature and the
-// hashes, and compares the listed content version with this build's. The
-// update downloads the release ZIP from GitHub over HTTPS and streams it to
+// its README.md). Nightshade TV: the check asks GitHub for the newest release of
+// this build's repository (TV_UPDATE_REPOSITORY, Oliv3rmoon/Nightshade-TV;
+// update_kit/github_release.h), not the catalog, which lists ProsperoTV's own
+// releases: a release that is no pre-release, carrying PPSA99003.zip and the
+// SHA256SUMS that gives its SHA-256, and tagged with a content version higher
+// than this build's. The update downloads that ZIP from GitHub over HTTPS and streams it to
 // the helper (self-updater.elf in the app's folder), which the app sends to
 // the console's payload loader: the helper checks and unpacks the release
 // beside the app, and once the app has closed it replaces the app's files and
@@ -20,6 +22,7 @@
 #include "tv_paths.h"
 #include "tv_storage.hpp"
 #include "tv_update_paths.h"
+#include "update_kit/github_release.h"
 #include "update_kit/self_update.h"
 #include "update_kit/update_check.h"
 
@@ -45,6 +48,10 @@ using hui::sys::log;
 
 // libcurl and OpenSSL want more stack than a default thread of the console has.
 constexpr std::size_t kStackBytes = 1024u * 1024u;
+// Where the check asks, and the name the helper's notification gives the app.
+constexpr const char *kRepository = TV_UPDATE_REPOSITORY;
+constexpr const char *kName = "Nightshade TV";
+static_assert(sizeof(TV_UPDATE_REPOSITORY) > 1, "a build asks a repository's releases");
 
 std::mutex g_lock;
 bool g_started = false;
@@ -80,9 +87,9 @@ bool read_lines(const std::string &path, std::string *lines, int count)
     return read == count;
 }
 
-// Test builds: dev/update-offer.txt beside the app replaces the catalog's
-// answer (and so skips its signature), so the update can be tried before the
-// catalog lists a newer release. Five lines: the new content version, the
+// Test builds: dev/update-offer.txt beside the app replaces GitHub's answer
+// (and so skips its SHA256SUMS), so the update can be tried before the
+// repository has a newer release. Five lines: the new content version, the
 // release's name, its ZIP on GitHub, its SHA-256, its size in bytes; any
 // further lines are the release notes.
 bool test_offer(self_update_offer *out)
@@ -93,7 +100,7 @@ bool test_offer(self_update_offer *out)
     self_update_offer filled{};
     if (!update_check_read_param(tv_self_update_path(1), filled.title, filled.installed))
         return false;
-    std::snprintf(filled.name, sizeof(filled.name), "ProsperoTV");
+    std::snprintf(filled.name, sizeof(filled.name), "%s", kName);
     std::snprintf(filled.available, sizeof(filled.available), "%s", lines[0].c_str());
     std::snprintf(filled.version, sizeof(filled.version), "%s", lines[1].c_str());
     std::snprintf(filled.artifact, sizeof(filled.artifact), "%s", lines[2].c_str());
@@ -111,7 +118,7 @@ bool test_offer(self_update_offer *out)
             notes.pop_back();
         std::snprintf(filled.notes, sizeof(filled.notes), "%s", notes.c_str());
     }
-    // Like the catalog, only a newer version is offered (content versions
+    // Like GitHub's check, only a newer version is offered (content versions
     // compare as text).
     if (std::strcmp(filled.available, filled.installed) <= 0)
         return false;
@@ -122,27 +129,31 @@ bool test_offer(self_update_offer *out)
 void *check(void *)
 {
     self_update_offer result{};
+    github_release_report report{};
     self_update_check_result state = SELF_UPDATE_UNKNOWN;
     // A test build can ask as another title and version (dev/update-as.txt:
-    // "PPSA99003 01.000.000"), since the test title is not in the catalog.
-    // That release is another app's: it is only announced.
+    // "PPSA99003 01.000.000"), since the repository's releases carry the
+    // released title's ZIP. That release is another app's: it is only announced.
     std::string as[1];
     char title[10] = {};
     char installed[12] = {};
     if (TV_DEV_SCRIPTS != 0 && read_lines(tv::storage::app_file("dev/update-as.txt"), as, 1) &&
         std::sscanf(as[0].c_str(), "%9s %11s", title, installed) == 2)
     {
-        state = self_update_check(self_update_console(), title, installed, &result);
+        state = self_update_check_as_from(kRepository, kName, title, installed, &result, &report);
         if (state == SELF_UPDATE_AVAILABLE)
             state = SELF_UPDATE_NOT_INSTALLABLE;
     }
     else
     {
-        state = self_update_check_self(&result);
+        state = self_update_check_self_from(kRepository, kName, &result, &report);
     }
+    log("[TV] update check: github %s releases: %s (HTTP %d, error %d, redirects %d, tag %s)",
+        kRepository, github_release_reason_text(report.reason), report.http_status,
+        report.platform_error, report.redirects, report.tag[0] != '\0' ? report.tag : "-");
     if (test_offer(&result))
     {
-        log("[TV] update check: dev/update-offer.txt replaces the catalog's answer");
+        log("[TV] update check: dev/update-offer.txt replaces GitHub's answer");
         state = SELF_UPDATE_AVAILABLE;
     }
     log("[TV] update check: result=%s installed=%s available=%s version=%s size=%llu",

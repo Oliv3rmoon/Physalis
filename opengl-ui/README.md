@@ -155,8 +155,13 @@ audio decoders, the keyboard) are loaded before access is asked for.
 
 ## Updates
 
-Once per launch the app asks prosperostore.net whether a newer ProsperoTV is
-listed (`ps5/src/update_kit/README.md`). A newer release opens a dialog over
+Once per launch the app asks GitHub whether Oliv3rmoon/Nightshade-TV has a
+newer release (`ps5/src/update_kit/README.md`): the newest release that is not
+a pre-release, tagged with a content version higher than this one and carrying
+`PPSA99003.zip` and the `SHA256SUMS` that gives its SHA-256. The catalog on
+prosperostore.net is not asked, so ProsperoTV's own releases are never offered.
+`TV_UPDATE_REPOSITORY=<owner>/<name> ps5/assemble.sh` names another
+repository for a test build. A newer release opens a dialog over
 the menu: **Update now** downloads the release, shows how far it is and how
 long it will take, unpacks it beside the app, and closes the app so the new
 files can take the old ones' place; **Later** leaves everything alone until

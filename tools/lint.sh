@@ -31,8 +31,9 @@ for file in "${repository_files[@]}"; do
             ;;
         *.c|*.cc|*.cpp|*.h|*.hpp|*.ld|*.py|*.ps1|*.sh|*.yml|*.yaml|Makefile|.clang-format|.clang-tidy|.env.example)
             header=$(head -n 20 "$file")
-            grep -Eq 'ps5-native-app-boilerplate|PS5 Radio|ProsperoTV' <<<"$header"
-            grep -Eq 'Copyright \(C\) 2026 (BlackBearReloaded|ThatGuyKalvin)' <<<"$header"
+            # Nightshade TV: Oliv3rmoon's own files name him and Nightshade TV.
+            grep -Eq 'ps5-native-app-boilerplate|PS5 Radio|ProsperoTV|Nightshade TV' <<<"$header"
+            grep -Eq 'Copyright \(C\) 2026 (BlackBearReloaded|ThatGuyKalvin|Oliv3rmoon)' <<<"$header"
             grep -Fq 'SPDX-License-Identifier: GPL-3.0-or-later' <<<"$header"
             ((checked += 1))
             ;;

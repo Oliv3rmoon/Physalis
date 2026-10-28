@@ -6,3 +6,5 @@
 #define TV_DEBUG_TRACE 0
 // The title this build installs as: its folder and its Lapy helper carry it.
 #define TV_TITLE_ID "PPSA99003"
+// The GitHub repository whose releases the update check asks (update_kit/github_release.h).
+#define TV_UPDATE_REPOSITORY "Oliv3rmoon/Nightshade-TV"
