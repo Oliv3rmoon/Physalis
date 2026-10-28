@@ -94,6 +94,8 @@ src/tv/               the interface and its logic (namespace ptv), as the consol
   browse_screen.*     Live TV and Favorites: hero, list chips, grid
   search_sheet.*      the search and filter drawer
   sources_screen.*    the three sources and their state
+  plex.*              Plex: sign-in with a code, servers and their connections, libraries,
+                      direct play or the transcoder, the timeline (model_plex.cpp: as a source)
   update_sheet.*      a newer version: the offer, the download, the hand-over
   app.*               tabs, status, the Settings and About pages, hints, the failure dialog, notices
 host/                 PC renderer, the scripted walk, stand-ins for keyboard and network

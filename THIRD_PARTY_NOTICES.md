@@ -22,6 +22,9 @@ ProsperoTV builds on and acknowledges:
 - [IPTVnator](https://github.com/4gray/iptvnator) and
   [Megacubo](https://github.com/EdenwareApps/Megacubo) as IPTV product
   references.
+- [PlxNative](https://github.com/GLinnik21/plx-native) by GLinnik21 (GPL-3.0)
+  as the reference for the Plex API (sign-in, server connections, the
+  universal transcoder and the timeline). No PlxNative code is included.
 - SDL2 (John Törnblom's [PS5 port](https://github.com/ps5-payload-dev/SDL)), RmlUi, FreeType, SQLite, zlib, LLVM, GoogleTest, Montserrat, Noto,
   DejaVu, and Source Han Sans.
 

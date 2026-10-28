@@ -33,6 +33,9 @@ from this repository. The current release is **01.001.000**; what changed is in 
   [Oliv3rmoon/Nightshade-TV](https://github.com/Oliv3rmoon/Nightshade-TV/releases) for a newer
   release, shows its notes, and installs it with **Update now**. It never offers ProsperoTV's own
   releases, which would put the old look back.
+- **Plex.** Sign in on the TV with a code at plex.tv/link, and your Plex servers' movies and TV
+  shows are in **On demand**, beside your playlists and accounts. A file plays as it is when the
+  PS5 decodes it, through the server's transcoder otherwise. See [Plex](#plex).
 - **No channels of its own.** Like ProsperoTV, it ships no channel list: every channel comes from a
   source you add.
 
@@ -63,6 +66,68 @@ payload loader on port 9021 that a ShadowMountPlus setup runs); without it, upda
 folder as above. A release ZIP built by this repository's workflow can be checked with
 `gh attestation verify PPSA99003.zip -R Oliv3rmoon/Nightshade-TV`.
 
+## Plex
+
+A Plex server is one more source in **Sources**. Its movies and TV shows are in **On demand**, in
+the screens an Xtream account's use; it has no live channels, so Live TV says so and opens On
+demand.
+
+**Signing in.** In **Sources**, choose **Add Plex**. A four-character code appears beside a QR
+code. On a phone or computer signed in to Plex, open [plex.tv/link](https://plex.tv/link) (the QR
+code opens it) and enter the code; the TV asks plex.tv every two seconds and the code lasts about
+15 minutes. Every server the account reaches, its own and those shared with it, then becomes a
+source, and the first is used. Sources shows the account's name, **Find servers** (servers shared
+since, with no new code) and **Sign out** (forgets the account on this console and removes its
+servers). In your Plex account's device list the console is **Nightshade TV (PS5)**.
+
+**What works.**
+
+- Movie libraries as Movies and show libraries as TV shows, each library a category, with seasons
+  and episodes, posters, plot, cast, genres, year and rating. The lists are saved on the console
+  and refreshed on the source's schedule, like an Xtream account's.
+- Search, Home and Continue, newest first, hidden categories and parental rules, as for other
+  on-demand titles.
+- Resuming where a title was left, on any device (Plex's resume point); progress told to the server
+  every ten seconds and when playback stops; the title marked watched when it ends, or once 90% of
+  it was seen.
+- The connection: the local address at home, the remote one away, Plex's relay as a last resort,
+  https before http, as [PlxNative](https://github.com/GLinnik21/plx-native) ranks them. A
+  connection counts when its `/identity` names the server, and the server is looked for once per
+  launch.
+- Sound and subtitle tracks from the playback menu, as far as the player reads them in the file or
+  in the transcoder's stream.
+
+**Direct play and the transcoder.** A file plays as it is when the PS5 player decodes it: MP4,
+MOV, Matroska, WebM or MPEG-TS, with H.264 (8-bit), HEVC or VP9 video up to 3840 x 2160 and AAC,
+AC-3, E-AC-3, MP2, MP3 or DTS sound, in one part. Anything else (AVI, AV1, 10-bit H.264, TrueHD,
+a film in several parts) plays through the server's universal transcoder over HLS, which copies
+H.264 or HEVC video when the file has it and sends AAC, AC-3 or E-AC-3 sound. A file that should
+play as it is but does not open falls back to the transcoder. What the server can transcode is up
+to the server (its processor, and Plex Pass for hardware transcoding).
+
+**Limits.**
+
+- No Plex Home profiles: the account that signs in is the one used.
+- No live TV or DVR, music or photos from Plex, and no Watchlist, Discover or Plex's own hubs.
+- Search is the app's own, over the downloaded lists; Plex's server search is not used.
+- No quality choice for the transcoder: it aims at the PS5's limit, 4K at up to 40 Mbit/s.
+- Plex servers are not sent to another console with **Share with another console**, and not on
+  the phone remote's source form: each console signs in itself.
+- Not yet run on a console with a real Plex server: the host tests check it against recorded
+  answers from plex.tv and a server.
+
+**The tokens.** They are kept as Xtream passwords are: each server's token in its source's
+password, the account's token and this console's client identifier in `prosperotv-plex-v1.txt`
+beside the sources (`/data/prosperotv/config`, or the title's storage), and in backups. They travel
+in `X-Plex-Token` headers only, to the server they belong to, never in an address, so no cache,
+receipt or failure report has them, and the diagnostic log never contains them or the account's
+name.
+
+The Plex API is used as [PlxNative](https://github.com/GLinnik21/plx-native) (a fast native Plex
+client for LG webOS by GLinnik21, GPL-3.0) documents and uses it: its notes and code were the
+reference for the sign-in, the connection ranking, the transcoder's parameters and the timeline.
+No PlxNative code is included.
+
 ## Requests, bugs and support
 
 - **Ask for a fix or a feature:** [open an issue](https://github.com/Oliv3rmoon/Nightshade-TV/issues/new/choose),
@@ -82,6 +147,8 @@ folder as above. A release ZIP built by this repository's workflow can be checke
   affiliated with iptv-org.
 - **[Nightshade](https://github.com/Oliv3rmoon/Nightshade)**, whose palette, art code and GitHub
   update check this release reuses.
+- **[PlxNative](https://github.com/GLinnik21/plx-native)**, by **GLinnik21**, whose documentation
+  and code of the Plex API were the reference for the [Plex](#plex) source.
 
 Nightshade TV is an unofficial release. ProsperoTV is made by BlackBearReloaded, ThatGuyKalvin and
 their contributors; neither they nor Sony endorse Nightshade TV. It is free software under the GNU
