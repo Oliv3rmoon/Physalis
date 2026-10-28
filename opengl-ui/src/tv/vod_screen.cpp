@@ -604,7 +604,7 @@ void VodScreen::draw_filters(ui::Canvas &canvas) const
 {
     auto &list = canvas.list;
     const auto &view = shared_.model.view;
-    list.rounded_rect({220, 190, 1480, 650}, 24, Color::rgb(0x11121c));
+    list.rounded_rect({220, 190, 1480, 650}, 24, tone::panel);
     ui::text(list, canvas.fonts.semibold, tr("Filter and sort"), 280, 265, 38, kWhite);
     const int sort = std::clamp(view.vod_sort, 0, kSortCount - 1);
     const bool episodes = view.vod_kind == static_cast<int>(VodKind::episodes);
@@ -644,7 +644,7 @@ void VodScreen::draw_details(ui::Canvas &canvas) const
     const auto item = model.vod().catalog()[row->item];
     const auto &details = model.vod().details(item.id);
     auto &list = canvas.list;
-    list.rounded_rect({90, 120, 1740, 815}, 24, Color::rgb(0x11121c));
+    list.rounded_rect({90, 120, 1740, 815}, 24, tone::panel);
     const auto &title = face_for(canvas.fonts, canvas.fonts.semibold, item.name);
     ui::text(list, title, title.font->fit(readable(title, item.name), 36, 1610), 140, 183, 36,
              kWhite);

@@ -54,7 +54,7 @@ void draw_channel_screen(gfx::DrawList &list, const ui::Fonts &fonts, const Rect
 // The pair of rods of a set whose top edge is at base_y.
 void draw_antenna(gfx::DrawList &list, float cx, float base_y, float height, Color color);
 
-// The app's mark: a sun setting behind a horizon.
+// The app's mark: Nightshade's flower, five red petals round a pale star.
 void draw_mark(gfx::DrawList &list, float cx, float cy, float size);
 
 // A glass panel in the theme. Over the screens (canvas.glass set) it frosts

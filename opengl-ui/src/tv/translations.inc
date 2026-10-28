@@ -547,7 +547,7 @@
 {"Delete", {"Borrar", "Effacer", "Löschen", "Elimina", "Apagar", "Verwijder"}},
 {"APPEARANCE AND ACCESSIBILITY", {"APARIENCIA Y ACCESIBILIDAD", "APPARENCE ET ACCESSIBILITÉ", "DARSTELLUNG UND BARRIEREFREIHEIT", "ASPETTO E ACCESSIBILITÀ", "APARÊNCIA E ACESSIBILIDADE", "WEERGAVE EN TOEGANKELIJKHEID"}},
 {"Theme", {"Tema", "Thème", "Design", "Tema", "Tema", "Thema"}},
-{"Dusk", {"Crepúsculo", "Crépuscule", "Abendrot", "Crepuscolo", "Crepúsculo", "Schemering"}},
+{"Nightshade", {"Nightshade", "Nightshade", "Nightshade", "Nightshade", "Nightshade", "Nightshade"}},
 {"Ocean", {"Océano", "Océan", "Ozean", "Oceano", "Oceano", "Oceaan"}},
 {"Forest", {"Bosque", "Forêt", "Wald", "Foresta", "Floresta", "Bos"}},
 {"Larger text", {"Texto más grande", "Texte plus grand", "Größere Schrift", "Testo più grande", "Texto maior", "Grotere tekst"}},

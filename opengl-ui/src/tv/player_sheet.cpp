@@ -35,7 +35,7 @@ int row_id(std::size_t index)
     return static_cast<int>(index) + 1;
 }
 
-// Over a moving picture the panel is nearly opaque; the rest is Dusk.
+// Over a moving picture the panel is nearly opaque; the rest is Nightshade.
 ui::Theme player_theme()
 {
     ui::Theme theme = dusk();

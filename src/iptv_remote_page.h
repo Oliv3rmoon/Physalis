@@ -3,25 +3,25 @@
  * SPDX-License-Identifier: GPL-3.0-or-later */
 R"REMOTE(<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#190807"><title>Nightshade TV Remote</title>
+<meta name="theme-color" content="#09090b"><title>Nightshade TV Remote</title>
 <link rel="icon" type="image/png" href="/icon.png"><link rel="apple-touch-icon" href="/icon.png">
 <style>
-:root{color-scheme:dark;font:16px system-ui,sans-serif;background:#190807;color:#fff2df}
+:root{color-scheme:dark;font:16px system-ui,sans-serif;background:#09090b;color:#ededf0}
 *{box-sizing:border-box}body{margin:0;padding:24px 20px max(24px,env(safe-area-inset-bottom))}
 main{max-width:420px;margin:auto}header{display:flex;align-items:center;gap:14px;margin-bottom:24px}
 .logo{width:56px;height:56px;border-radius:14px;flex-shrink:0;object-fit:cover}
-h1{font-size:23px;margin:0}header p{margin:3px 0 0;color:#d3b6a8;font-size:14px}
-.card{background:#2b100d;border:1px solid #633428;border-radius:20px;padding:20px;margin:16px 0}
-label{display:block;color:#e8b968;font-size:13px;font-weight:700;letter-spacing:.08em;margin-bottom:10px}
-input,button,select{font:inherit;border:1px solid #81503e;border-radius:12px;color:inherit;min-height:52px}
-input,select{background:#190807;padding:13px;width:100%;font-size:18px}button{background:#3e1812;padding:12px;cursor:pointer;touch-action:manipulation}
-button:hover{background:#7d2412}button:active{transform:scale(.96)}button:focus-visible,input:focus-visible{outline:3px solid #fff2df;outline-offset:3px}
-button:disabled{opacity:.5;cursor:wait}.primary{background:#ff9445;color:#190807;font-weight:750}.primary:hover{background:#ffc276}
-.row{display:flex;gap:10px;margin-top:12px}.row>*{flex:1}.muted{font-size:13px;color:#d3b6a8;line-height:1.5}
-#status{min-height:24px;color:#e8b968;font-size:14px;margin:0 2px}.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:310px;margin:22px auto}
+h1{font-size:23px;margin:0}header p{margin:3px 0 0;color:#a9a9b1;font-size:14px}
+.card{background:#0e0e11;border:1px solid #2b2b31;border-radius:20px;padding:20px;margin:16px 0}
+label{display:block;color:#e5484d;font-size:13px;font-weight:700;letter-spacing:.08em;margin-bottom:10px}
+input,button,select{font:inherit;border:1px solid #2b2b31;border-radius:12px;color:inherit;min-height:52px}
+input,select{background:#09090b;padding:13px;width:100%;font-size:18px}button{background:#161619;padding:12px;cursor:pointer;touch-action:manipulation}
+button:hover{background:#26161a}button:active{transform:scale(.96)}button:focus-visible,input:focus-visible{outline:3px solid #ededf0;outline-offset:3px}
+button:disabled{opacity:.5;cursor:wait}.primary{background:#e5484d;color:#0b0b0d;font-weight:750}.primary:hover{background:#ff6b72}
+.row{display:flex;gap:10px;margin-top:12px}.row>*{flex:1}.muted{font-size:13px;color:#a9a9b1;line-height:1.5}
+#status{min-height:24px;color:#f3a9ad;font-size:14px;margin:0 2px}.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:310px;margin:22px auto}
 .pad button{height:76px;font-size:26px}.pad .ok{font-size:18px}#up{grid-column:2}#left{grid-column:1}#down{grid-column:2}
-fieldset{border:0;padding:0;margin:0;min-width:0}[hidden]{display:none!important}footer{text-align:center;color:#d3b6a8;font-size:12px;margin-top:20px}
-input[type=range]{padding:0;min-height:44px;accent-color:#ff9445;cursor:pointer}output{float:right;font-variant-numeric:tabular-nums}
+fieldset{border:0;padding:0;margin:0;min-width:0}[hidden]{display:none!important}footer{text-align:center;color:#a9a9b1;font-size:12px;margin-top:20px}
+input[type=range]{padding:0;min-height:44px;accent-color:#e5484d;cursor:pointer}output{float:right;font-variant-numeric:tabular-nums}
 </style></head><body><main>
 <header><img class="logo" src="/icon.png" width="56" height="56" alt=""><div><h1>Nightshade TV</h1><p>Your phone. Your remote.</p></div></header>
 <p id="status" role="status" aria-live="polite">Pair with the code on your TV</p>

@@ -1,4 +1,4 @@
-// ProsperoTV - Dusk: the app's design language as kit tokens.
+// ProsperoTV - Nightshade: the app's design language as kit tokens.
 // Copyright (C) 2026 BlackBearReloaded
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -118,12 +118,13 @@ void apply_appearance(Frame &frame, const Settings &settings)
 ui::Theme dusk()
 {
     // The kit's Acrylic theme is the recipe (glass surfaces, hairlines of
-    // light); the palette, the corners and the pace are ProsperoTV's own.
+    // light); the palette and the corners are Nightshade's, the pace is
+    // ProsperoTV's own.
     ui::Theme t = ui::themes()[0];
-    t.id = "dusk";
-    t.name = "Dusk";
+    t.id = "nightshade";
+    t.name = "Nightshade";
     t.family = "Frosted glass";
-    t.summary = "Glass panels over a red sky, cream actions, one orange accent";
+    t.summary = "Black glass over a near-black sky with a low red glow, red actions";
 
     t.backdrop = dusk_sky(tone::ember, tone::wine, 0.0f, 0.0f);
     t.page = tone::night;
@@ -131,13 +132,13 @@ ui::Theme dusk()
     t.surface_high = Color::rgb(0xffffff, 0.1f);
     t.text = tone::cream;
     t.text_muted = tone::cream.with_alpha(0.62f);
-    t.primary = tone::cream;
+    t.primary = tone::accent;
     t.on_primary = tone::ink;
-    t.secondary = Color::rgb(0xffffff, 0.1f);
+    t.secondary = Color::rgb(0xffffff, 0.08f);
     t.on_secondary = tone::cream;
     t.accent = tone::accent;
-    t.outline = Color::rgb(0xffffff, 0.16f);
-    t.focus = tone::cream;
+    t.outline = Color::rgb(0xffffff, 0.12f);
+    t.focus = tone::accent;
     t.shadow = Color::rgb(0x000000, 0.45f);
     t.light = Color::rgb(0xffffff, 0.22f);
     t.danger = tone::bad;
@@ -146,12 +147,12 @@ ui::Theme dusk()
 
     t.style = ui::SurfaceStyle::glass;
     t.corner = ui::Corner::round;
-    t.radius = 16.0f;
-    t.radius_card = 24.0f;
+    t.radius = 12.0f;
+    t.radius_card = 20.0f;
     t.border = 1.5f;
     t.pill_chips = true;
     t.shadow_offset = 12.0f;
-    t.shadow_blur = 34.0f;
+    t.shadow_blur = 32.0f;
     t.focus_width = 3.0f;
     t.focus_gap = 5.0f;
 
@@ -168,12 +169,12 @@ gfx::BackdropSpec dusk_sky(Color lean, Color lean_dark, float amount, float time
 {
     gfx::BackdropSpec sky;
     sky.mode = gfx::BackdropMode::aurora;
-    sky.colors[0] = Color::rgb(0x240a08);
-    sky.colors[1] = Color::rgb(0x100504);
-    // The clouds stay dark: they are a mood behind text, not a picture. One
-    // is red, the other burnt orange.
-    sky.colors[2] = gfx::mix(Color::rgb(0xb8261b), gfx::mix(lean, tone::night, 0.5f), amount);
-    sky.colors[3] = gfx::mix(Color::rgb(0xc4521a), gfx::mix(lean_dark, lean, 0.2f), amount);
+    sky.colors[0] = Color::rgb(0x0e0e11);
+    sky.colors[1] = Color::rgb(0x050506);
+    // The clouds stay dark: they are a mood behind text, not a picture. Both
+    // are Nightshade's red: its backdrop's low glow, and the deep red under it.
+    sky.colors[2] = gfx::mix(Color::rgb(0x96121c), gfx::mix(lean, tone::night, 0.5f), amount);
+    sky.colors[3] = gfx::mix(Color::rgb(0x5a1419), gfx::mix(lean_dark, lean, 0.2f), amount);
     sky.time = time;
     return sky;
 }

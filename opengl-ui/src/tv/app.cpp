@@ -290,7 +290,7 @@ App::App(Model &model, const ui::Fonts &fonts, std::uint32_t glass_texture,
                      "Português", "Nederlands", "العربية", "עברית"},
                     settings.interface_language)
         .description = tr("Restart to apply language");
-    form_.add_choice(kRowTheme, tr("Theme"), {tr("Dusk"), tr("Ocean"), tr("Forest")},
+    form_.add_choice(kRowTheme, tr("Theme"), {tr("Nightshade"), tr("Ocean"), tr("Forest")},
                      settings.theme);
     form_.add_toggle(kRowLargeText, tr("Larger text"), settings.larger_text).description =
         tr("25% larger text. Takes effect the next time the menu opens.");
@@ -1792,7 +1792,7 @@ void App::draw_intro(ui::Canvas &canvas) const
     // The room is dark until the view is through the glass.
     const float dark = 1.0f - tween::smoothstep(tween::inverse_lerp(0.35f, 0.9f, dive));
     list.rounded_rect({-8.0f, -8.0f, kWidth + 16.0f, kHeight + 16.0f}, 0.0f,
-                      Color::rgb(0x070202, dark));
+                      Color::rgb(0x050506, dark));
 
     // Where the screen is before the set is drawn, so the view can aim at it.
     const Rect body = tv_body(kIntroSet);
@@ -1810,20 +1810,23 @@ void App::draw_intro(ui::Canvas &canvas) const
     // The light the picture throws on the room.
     list.glow(body.inset(-30.0f), 60.0f, 260.0f, tone::ember.with_alpha(0.26f * open));
     list.shadow({body.x, body.y + 30.0f, body.w, body.h}, 40.0f, 70.0f, Color::rgb(0x000000, 0.6f));
-    const ArtColors wood{Color::rgb(0xb4572a), Color::rgb(0x6e2a14),
-                         gfx::mix(tone::ember, Color::rgb(0x3a1410), 1.0f - open)};
+    // Nightshade's black, lit red from the screen as it comes on.
+    const ArtColors wood{Color::rgb(0x2b2b31), Color::rgb(0x141417),
+                         gfx::mix(tone::accent, tone::wine, 1.0f - open)};
     const Rect screen = draw_tv_shell(list, kIntroSet, 44.0f, wood);
     const float corner = screen.h * 0.13f;
 
     // Off: dark glass. Then a line of light across it, which opens.
-    list.rounded_rect(screen, corner, Color::rgb(0x0b0504));
+    list.rounded_rect(screen, corner, tone::ink);
     if (line > 0.0f)
     {
         const float lit_w = screen.w * (open > 0.0f ? 1.0f : 0.06f + 0.94f * line);
         const float lit_h = tween::lerp(5.0f, screen.h, open);
         const Rect lit{screen.cx() - lit_w * 0.5f, screen.cy() - lit_h * 0.5f, lit_w, lit_h};
         list.push_clip(lit);
-        list.gradient_rect(screen, corner, Color::rgb(0xc8431f), tone::wine);
+        list.gradient_rect(screen, corner, tone::panel_lit, tone::night);
+        list.glow({screen.cx() - 120.0f, screen.cy() - 154.0f, 240.0f, 240.0f}, 120.0f, 90.0f,
+                  tone::wine.with_alpha(0.9f));
         // The picture: the app's mark and name, as a station's card.
         list.push_opacity(mark);
         list.circle(screen.cx(), screen.cy() - 26.0f, 150.0f, kWhite.with_alpha(0.06f));

@@ -9,6 +9,7 @@
 #include "ui/components/progress.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 
@@ -25,7 +26,7 @@ struct Ground
     std::uint32_t accent;
 };
 
-// Channel grounds: every one sits comfortably on the red page.
+// Channel grounds: every one sits comfortably on the dark page.
 constexpr Ground kGrounds[] = {
     {0xc9483f, 0x4a1a2c, 0xff9a7a}, // ember
     {0x8a3f9a, 0x2b1746, 0xd9a3ff}, // orchid
@@ -282,16 +283,35 @@ void draw_channel_screen(gfx::DrawList &list, const ui::Fonts &fonts, const Rect
 
 void draw_mark(gfx::DrawList &list, float cx, float cy, float size)
 {
+    // Nightshade's flower, as tools/render-home-art.py draws it for the icon: five red
+    // petals round a pale star, in a red light. A petal is a narrow base, a round middle and
+    // a pointed tip, each turned to its place, with a vein along it.
     const float radius = size * 0.5f;
-    list.glow({cx - radius, cy - radius, size, size}, radius, size * 0.5f,
-              tone::accent.with_alpha(0.3f));
-    list.gradient_rect({cx - radius, cy - radius, size, size}, radius, tone::accent, tone::ember);
-    // The horizon and one ripple under it, cut into the disc.
-    const float line = std::max(2.0f, size * 0.07f);
-    list.line(cx - radius * 0.62f, cy + radius * 0.3f, cx + radius * 0.62f, cy + radius * 0.3f,
-              line, tone::night.with_alpha(0.85f));
-    list.line(cx - radius * 0.34f, cy + radius * 0.58f, cx + radius * 0.34f, cy + radius * 0.58f,
-              line, tone::night.with_alpha(0.6f));
+    list.glow({cx - radius * 0.6f, cy - radius * 0.6f, radius * 1.2f, radius * 1.2f},
+              radius * 0.6f, size * 0.45f, tone::accent.with_alpha(0.3f));
+    for (int k = 0; k < 5; ++k)
+    {
+        const float angle = static_cast<float>(k) * 1.2566371f; // a fifth of a turn
+        const float dx = std::sin(angle), dy = -std::cos(angle);
+        // From `from` to `to` (fractions of the radius) along the petal, `wide` across it.
+        const auto piece = [&](float from, float to, float wide)
+        {
+            const float mid = (from + to) * 0.5f * radius;
+            const float w = wide * radius, h = (to - from) * radius;
+            list.rotated_rect({cx + dx * mid - w * 0.5f, cy + dy * mid - h * 0.5f, w, h},
+                              std::min(w, h) * 0.5f, angle, tone::accent);
+        };
+        piece(0.08f, 0.48f, 0.22f);
+        piece(0.30f, 0.80f, 0.50f);
+        const float tip = 0.81f * radius, tip_h = 0.38f * radius, tip_w = 0.40f * radius;
+        list.triangle({cx + dx * tip - tip_w * 0.5f, cy + dy * tip - tip_h * 0.5f, tip_w, tip_h},
+                      tone::accent, 0.0f, angle);
+        list.line(cx + dx * radius * 0.24f, cy + dy * radius * 0.24f, cx + dx * radius * 0.8f,
+                  cy + dy * radius * 0.8f, std::max(1.0f, size * 0.02f),
+                  tone::wine.with_alpha(0.6f));
+    }
+    list.star(cx, cy, radius * 0.42f, tone::wine.with_alpha(0.86f));
+    list.star(cx, cy, radius * 0.28f, Color::rgb(0xfff1e6));
 }
 
 void draw_glass(ui::Canvas &canvas, const ui::Theme &theme, const Rect &r, float radius)

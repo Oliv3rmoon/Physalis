@@ -191,13 +191,14 @@ TEST(PlayerSheet, PaintsTheSettingsPanelAtTheRight)
     EXPECT_LE(bitmap.x + static_cast<int>(bitmap.width), 1920);
     EXPECT_LE(bitmap.y + static_cast<int>(bitmap.height), 1080);
     EXPECT_EQ(bitmap.argb.size(), static_cast<std::size_t>(bitmap.width) * bitmap.height);
-    // The panel is nearly opaque Dusk: dark and red-leaning.
+    // The panel is nearly opaque Nightshade: near black.
     const hui::gfx::Rect panel = sheet.panel();
     const std::uint32_t inside =
         pixel(cue, static_cast<int>(panel.x + 12.0f), static_cast<int>(panel.y + panel.h * 0.5f));
     EXPECT_GT(inside >> 24, 200u);
     EXPECT_LT((inside >> 16) & 255u, 90u);
-    EXPECT_GE((inside >> 16) & 255u, inside & 255u);
+    EXPECT_LT((inside >> 8) & 255u, 90u);
+    EXPECT_LT(inside & 255u, 90u);
     int glyphs = 0;
     for (const hui::gfx::Instance &instance : sheet.recorded().instances())
         glyphs +=

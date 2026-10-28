@@ -148,7 +148,7 @@ void Multiview::draw(ui::Canvas &canvas) const
 {
     auto &list = canvas.list;
     const auto &fonts = canvas.fonts;
-    list.rounded_rect({0, 0, kWidth, kHeight}, 0, Color::rgb(0x101015));
+    list.rounded_rect({0, 0, kWidth, kHeight}, 0, tone::night);
     ui::text(list, fonts.semibold, tr("Multiview"), 48, 64, 34, kWhite);
     ui::text(list, fonts.regular, muted_ ? tr("Muted") : tr("Sound follows the selected channel"),
              kWidth - 48, 64, 22, shared_.theme.text_muted, gfx::Align::right);
@@ -159,8 +159,8 @@ void Multiview::draw(ui::Canvas &canvas) const
     {
         const Rect tile{48 + (width + gap) * (i % 2), top + (height + gap) * (i / 2), width,
                         height};
-        list.bordered_rect(tile, 12, Color::rgb(0x050508), i == selected_ ? 4 : 1,
-                           i == selected_ ? tone::accent : Color::rgb(0x343440));
+        list.bordered_rect(tile, 12, Color::rgb(0x050506), i == selected_ ? 4 : 1,
+                           i == selected_ ? tone::accent : Color::rgb(0x2b2b31));
         const Rect picture{tile.x + 8, tile.y + 8, tile.w - 16, tile.h - 65};
         const auto texture = previews_[i].find(channels_[i]);
         if (texture.id)
@@ -206,7 +206,7 @@ void Multiview::draw_picture_in_picture(ui::Canvas &canvas) const
         return;
     auto &list = canvas.list;
     const Rect tile{1416, 72, 456, 300};
-    list.bordered_rect(tile, 12, Color::rgb(0x050508), 2, tone::accent);
+    list.bordered_rect(tile, 12, Color::rgb(0x050506), 2, tone::accent);
     const Rect picture{tile.x + 8, tile.y + 8, tile.w - 16, 240};
     const auto texture = previews_[selected_].find(channels_[selected_]);
     if (texture.id)

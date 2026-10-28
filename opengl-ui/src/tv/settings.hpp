@@ -22,7 +22,7 @@ struct Settings
     int subtitle_size = 1;      // Small, medium, large.
     int subtitle_color = 0;     // White, yellow, cyan.
     int interface_language = 0; // 0 follows console, 1..9 en/es/fr/de/it/pt/nl/ar/he.
-    int theme = 0;              // 0 Dusk, 1 Ocean, 2 Forest
+    int theme = 0;              // 0 Nightshade, 1 Ocean, 2 Forest
     bool larger_text = false;
     bool high_contrast = false;
     int screensaver_minutes = 5; // 0 disables; supported delays 1, 5, 10
