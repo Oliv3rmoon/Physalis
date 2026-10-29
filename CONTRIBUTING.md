@@ -21,7 +21,7 @@ Before opening a change:
 
 Every comment-capable code, script, workflow, tooling configuration, and
 manifest must carry a project copyright line, naming BlackBearReloaded,
-ThatGuyKalvin or (for Nightshade TV's own files) Oliv3rmoon, and the
+ThatGuyKalvin or (for Physalis's own files) Oliv3rmoon, and the
 `GPL-3.0-or-later` SPDX header. Keep the copyright line a
 file was created with. JSON and binary formats cannot carry comments;
 their licensing is covered by `LICENSE` and `THIRD_PARTY_NOTICES.md`.

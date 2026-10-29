@@ -1,5 +1,5 @@
 /*
- * Nightshade TV - Updates from a GitHub repository's releases instead of the ProsperoStore catalog.
+ * Physalis - Updates from a GitHub repository's releases instead of the ProsperoStore catalog.
  * SPDX-FileCopyrightText: Copyright 2026 Oliv3rmoon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -42,7 +42,7 @@ static int is_file_name(const char *text, size_t longest)
 }
 
 /* The app's name for the helper's notification: as a file's name, and spaces between words
- * ("Nightshade TV"). */
+ * ("Physalis"). */
 static int is_app_name(const char *text, size_t longest)
 {
     size_t i;

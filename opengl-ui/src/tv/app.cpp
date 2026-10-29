@@ -1117,7 +1117,7 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
         else
         {
             announcements_.push(ui::StatusKind::info,
-                                "Nightshade TV " + offer.version + tr(" is available"),
+                                "Physalis " + offer.version + tr(" is available"),
                                 tr("Get it from GitHub."), 10.0f);
         }
     }
@@ -1404,7 +1404,7 @@ void App::draw_header(ui::Canvas &canvas) const
     const float l1 = ui::button_width(ui::Button::l1, 34.0f);
     // The name stays clear of where the L1 hint before the search lens is while the tabs are not
     // scrolled: a little smaller if need be, and the same size whichever tab is open.
-    const char *name = "Nightshade TV";
+    const char *name = "Physalis";
     const float room = tabs_.bounds().x - 62.0f - l1 - 16.0f - 12.0f - (kMargin + 58.0f);
     float name_size = shared_.settings.larger_text ? 24.0f : 30.0f;
     if (fonts.display.font != nullptr)
@@ -1472,7 +1472,7 @@ void App::draw_settings(ui::Canvas &canvas) const
     fact(tr("Favorites"), group_digits(model.group_size(Group::favorites)));
     fact(tr("Recent channels"), group_digits(model.group_size(Group::recent)));
     ui::paragraph(list, fonts.regular,
-                  tr("Who made Nightshade TV, and how channels get here, is on the About tab."), x,
+                  tr("Who made Physalis, and how channels get here, is on the About tab."), x,
                   y + 76.0f, 21.0f, right - x, 30.0f, theme.text_muted, 3);
     list.pop_transform();
     list.pop_opacity();
@@ -1546,15 +1546,15 @@ void App::draw_about(ui::Canvas &canvas) const
     // The mark, name and version sit top right, level with the kicker; the
     // paragraph starts beside them and widens once past.
     const float right = x + width;
-    const float name_left = right - paint.heading_width("Nightshade TV", 40.0f);
+    const float name_left = right - paint.heading_width("Physalis", 40.0f);
     draw_mark(list, name_left - 54.0f, y + 20.0f, 68.0f);
-    paint.heading("Nightshade TV", right, y + 20.0f, 40.0f, gfx::Align::right);
+    paint.heading("Physalis", right, y + 20.0f, 40.0f, gfx::Align::right);
     ui::text(list, fonts.mono, tr("Version ") + version_, right, y + 54.0f, 20.0f, theme.text_muted,
              gfx::Align::right);
     const float clear_x = name_left - 116.0f;
     const float clear_bottom = y + 62.0f;
     y += 36.0f;
-    beside(tr("Nightshade TV is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. "
+    beside(tr("Physalis is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. "
               "ProsperoTV is carried on by ThatGuyKalvin. Unofficial, and free software under the "
               "GNU General Public License, version 3 or later."),
            clear_x, clear_bottom, 23.0f);
@@ -1562,7 +1562,7 @@ void App::draw_about(ui::Canvas &canvas) const
     kicker(tr("THANKS"));
     words(tr("Thanks to JMUtechnologies for testing and feedback, as well as Bastian-R-dotcom, to "
              "the whole PS5 homebrew community, and to every developer whose tools and libraries "
-             "make Nightshade TV possible."),
+             "make Physalis possible."),
           theme.text, 3);
     ui::text(list, fonts.regular, tr("Menu sound effects made with ElevenLabs."), x,
              kCreditsPanel.y + kCreditsPanel.h - 36.0f, 19.0f, theme.text_muted);
@@ -1601,7 +1601,7 @@ void App::draw_about(ui::Canvas &canvas) const
         theme.text, 3);
     rule();
     kicker(tr("GOOD TO KNOW"));
-    words(tr("Nightshade TV hosts no streams of its own: every channel plays from the address its "
+    words(tr("Physalis hosts no streams of its own: every channel plays from the address its "
              "playlist gives, and channels come and go without notice. Your sources, favorites and "
              "recent channels stay on this console."),
           theme.text, 4);
@@ -1835,7 +1835,7 @@ void App::draw(Frame &frame, bool themed) const
                  kWidth / 2, 490, 40, shared_.theme.text, gfx::Align::center);
         ui::text(over.list, over.fonts.regular,
                  storage_action_ == StorageAction::share_import
-                     ? tr("Keep Nightshade TV open until this finishes.")
+                     ? tr("Keep Physalis open until this finishes.")
                      : tr("Keep the drive connected until this finishes."),
                  kWidth / 2, 555, 26, shared_.theme.text_muted, gfx::Align::center);
         over.list.arc(kWidth / 2, 635, 22, 4, shared_.clock * 4, 2.2f, tone::accent);
@@ -1904,7 +1904,7 @@ void App::draw_intro(ui::Canvas &canvas) const
         list.push_opacity(mark);
         list.circle(screen.cx(), screen.cy() - 26.0f, 150.0f, kWhite.with_alpha(0.06f));
         draw_mark(list, screen.cx(), screen.cy() - 34.0f, 132.0f);
-        ui::text(list, shared_.fonts.display, "Nightshade TV", screen.cx(), screen.cy() + 96.0f, 54.0f,
+        ui::text(list, shared_.fonts.display, "Physalis", screen.cx(), screen.cy() + 96.0f, 54.0f,
                  kWhite.with_alpha(0.96f), gfx::Align::center);
         list.pop_opacity();
         // The tube warming up: white first, then the colour comes through.

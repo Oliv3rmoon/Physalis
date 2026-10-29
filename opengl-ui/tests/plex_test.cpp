@@ -1,4 +1,4 @@
-// Nightshade TV - Plex: the PIN sign-in, servers and their connections, libraries, playback
+// Physalis - Plex: the PIN sign-in, servers and their connections, libraries, playback
 // and the timeline, against recorded answers. Nothing here reaches a network.
 // Copyright (C) 2026 Oliv3rmoon
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -220,8 +220,8 @@ TEST(PlexPin, PendingThenAuthorizedThenServers)
     ASSERT_EQ(create.size(), 1u);
     EXPECT_EQ(create[0].method, "POST");
     for (const char *header :
-         {"Accept: application/json", "X-Plex-Product: Nightshade TV", "X-Plex-Version: 01.002.000",
-          "X-Plex-Platform: Generic", "X-Plex-Device-Name: Nightshade TV (PS5)",
+         {"Accept: application/json", "X-Plex-Product: Physalis", "X-Plex-Version: 01.002.000",
+          "X-Plex-Platform: Generic", "X-Plex-Device-Name: Physalis (PS5)",
           "X-Plex-Client-Identifier: 0f1e2d3c-4b5a-4978-8a9b-abcdefabcdef"})
         EXPECT_TRUE(has_header(create[0], header)) << header;
     EXPECT_FALSE(has_header_named(create[0], "X-Plex-Token"));

@@ -110,7 +110,7 @@ extern "C"
     int update_check_json_string(const char *json, size_t length, const char *key, char *out,
                                  size_t size);
 
-    /* Nightshade TV, as Nightshade reads GitHub's answers (github_release.c): bounded views of
+    /* Physalis, as Nightshade reads GitHub's answers (github_release.c): bounded views of
      * a top-level value of any type and of an unsigned integer, and the elements of an array one
      * after another. 1: found, 0: absent (or no more elements), -1: malformed, or a key that is
      * there twice. Views borrow the input. For update_check_json_array_next, *at is 0 for the

@@ -416,7 +416,7 @@ if test_title:
     param["contentId"] = f"UP9000-{test_title}_00-PROSPEROTVUITEST"
     for language in param["localizedParameters"].values():
         if isinstance(language, dict):
-            language["titleName"] = "Nightshade TV UI test"
+            language["titleName"] = "Physalis UI test"
     # A test title can carry another version, to be the "newer release" of an
     # update test (tools/console-run.py, UPDATED_APP).
     test_version = os.environ.get("TV_TEST_VERSION", "")
@@ -450,12 +450,12 @@ if True:
          '        wrap_options+=("--wrap=$symbol")\n'
          '    done\n'
          'fi\n')
-# ---- Nightshade TV: the update check asks this GitHub repository's releases
+# ---- Physalis: the update check asks this GitHub repository's releases
 #      (src/update_kit/github_release.h), never the catalog, which lists
 #      ProsperoTV's own. TV_UPDATE_REPOSITORY=<owner>/<name> names another one
 #      (a fork's test builds); ProsperoTV's own repositories are refused, since
 #      an update from them would undo the branding.
-update_repository = os.environ.get("TV_UPDATE_REPOSITORY", "Oliv3rmoon/Nightshade-TV")
+update_repository = os.environ.get("TV_UPDATE_REPOSITORY", "Oliv3rmoon/Physalis")
 owner, _, name = update_repository.partition("/")
 if not (re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", owner)
         and re.fullmatch(r"[A-Za-z0-9._-]{1,100}", name) and name not in (".", "..")):

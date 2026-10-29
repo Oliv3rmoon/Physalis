@@ -308,7 +308,7 @@ void Request(Client &client)
     const auto body = request.substr(end + 4, length);
     if (!remote_header)
     {
-        Reply(client, 403, "Open the Nightshade TV remote website to connect.");
+        Reply(client, 403, "Open the Physalis remote website to connect.");
         return;
     }
     if (first == "POST /api/pair HTTP/1.1")

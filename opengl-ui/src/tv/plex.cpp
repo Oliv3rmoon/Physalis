@@ -1,4 +1,4 @@
-// Nightshade TV - Plex as a source: sign-in on the TV, servers, libraries and playback.
+// Physalis - Plex as a source: sign-in on the TV, servers, libraries and playback.
 // Copyright (C) 2026 Oliv3rmoon
 // SPDX-License-Identifier: GPL-3.0-or-later
 //

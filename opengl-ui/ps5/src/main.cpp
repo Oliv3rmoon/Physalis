@@ -130,7 +130,7 @@ struct NotificationRequest
 void notify_failure(const char *stage)
 {
     NotificationRequest request{};
-    std::snprintf(request.message, sizeof(request.message), "Nightshade TV could not open: %s",
+    std::snprintf(request.message, sizeof(request.message), "Physalis could not open: %s",
                   stage != nullptr ? stage : "unknown stage");
     sceKernelSendNotificationRequest(0, &request, sizeof(request), 0);
 }

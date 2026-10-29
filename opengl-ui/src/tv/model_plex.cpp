@@ -1,4 +1,4 @@
-// Nightshade TV - Plex as a source: signing in, its servers in Sources, and signing out.
+// Physalis - Plex as a source: signing in, its servers in Sources, and signing out.
 // Copyright (C) 2026 Oliv3rmoon
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
@@ -175,7 +175,7 @@ void Model::commit_plex_sign_in(const plex::SignIn &done)
     plex_account_.token = done.token();
     if (!plex::save_account(path(kPlexFile), plex_account_))
         notify(Level::warning, tr("The Plex sign-in could not be saved"),
-               tr("It holds until Nightshade TV is closed."));
+               tr("It holds until Physalis is closed."));
     if (!library_.ready())
     {
         notify(Level::error, tr("Library settings could not be opened"));

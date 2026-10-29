@@ -8,7 +8,7 @@
 # built, with its checksum, to a GitHub Release. Nothing built anywhere else is
 # ever attached, and a release that already has a ZIP is never changed.
 # Both builds keep their compiler cache between runs, each its own.
-# Nightshade TV (Oliv3rmoon/Nightshade-TV): a version tag pushed to that repository builds
+# Physalis (Oliv3rmoon/Physalis): a version tag pushed to that repository builds
 # PPSA99003.zip and publishes it, with SHA256SUMS, as the latest release, which the app's
 # update check then offers (opengl-ui/ps5/src/update_kit/github_release.h).
 # Copyright (C) 2026 BlackBearReloaded
@@ -432,9 +432,9 @@ jobs:
           elif [[ -f $notes ]]; then
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" --verify-tag --latest \
-              --title "Nightshade TV $GITHUB_REF_NAME" --notes-file "$notes"
+              --title "Physalis $GITHUB_REF_NAME" --notes-file "$notes"
           else
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" --verify-tag --latest \
-              --title "Nightshade TV $GITHUB_REF_NAME" --generate-notes
+              --title "Physalis $GITHUB_REF_NAME" --generate-notes
           fi

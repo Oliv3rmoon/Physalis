@@ -1,24 +1,28 @@
 <p align="center">
-  <img src="sce_sys/icon0.png" width="128" alt="Nightshade TV icon">
+  <img src="sce_sys/icon0.png" width="128" alt="Physalis icon">
 </p>
 
-<h1 align="center">Nightshade TV</h1>
+<h1 align="center">Physalis</h1>
 
 <p align="center">
-  <strong>Live TV for PS5 homebrew, by Oliv3rmoon: everything in ProsperoTV, in Nightshade's black and red, updated from its own releases.</strong>
+  <strong>Physalis, a Nightshade app: live TV for PS5 homebrew, by Oliv3rmoon. Everything in ProsperoTV, in Nightshade's black and red, updated from its own releases.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Oliv3rmoon/Nightshade-TV/releases/latest"><img src="https://img.shields.io/github/v/release/Oliv3rmoon/Nightshade-TV?style=for-the-badge&label=download&color=e5484d&labelColor=0d0d0f" alt="Download the latest release"></a>
+  Formerly Nightshade TV
+</p>
+
+<p align="center">
+  <a href="https://github.com/Oliv3rmoon/Physalis/releases/latest"><img src="https://img.shields.io/github/v/release/Oliv3rmoon/Physalis?style=for-the-badge&label=download&color=e5484d&labelColor=0d0d0f" alt="Download the latest release"></a>
   <a href="https://discord.gg/pSqgRU3YP9"><img src="https://img.shields.io/badge/discord-nightly-0d0d0f?style=for-the-badge&logo=discord&logoColor=e5484d" alt="Discord: nightly"></a>
   <a href="https://buymeacoffee.com/oliv3rmoon"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-0d0d0f?style=for-the-badge&logo=buymeacoffee&logoColor=e5484d" alt="Buy me a coffee"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-0d0d0f?style=for-the-badge&labelColor=0d0d0f&color=e5484d" alt="GPL-3.0-or-later"></a>
 </p>
 
-Nightshade TV is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. It is
+Physalis is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. It is
 [ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV) 01.000.090, the native IPTV client for
 PS5 homebrew, with the look of [Nightshade](https://github.com/Oliv3rmoon/Nightshade) and updates
-from this repository. The current release is **01.002.000**; what changed is in the
+from this repository. The current release is **01.002.001**; what changed is in the
 [changelog](docs/CHANGELOG.md).
 
 ## What you get
@@ -30,7 +34,7 @@ from this repository. The current release is **01.002.000**; what changed is in 
   near-black sky with a low red glow, and the nightshade flower as the mark, the icon and the
   home-screen pictures. The Ocean and Forest themes are still in **Settings**.
 - **Updates from its own releases.** At the start it asks
-  [Oliv3rmoon/Nightshade-TV](https://github.com/Oliv3rmoon/Nightshade-TV/releases) for a newer
+  [Oliv3rmoon/Physalis](https://github.com/Oliv3rmoon/Physalis/releases) for a newer
   release, shows its notes, and installs it with **Update now**. It never offers ProsperoTV's own
   releases, which would put the old look back.
 - **Plex.** Sign in on the TV with a code at plex.tv/link, and your Plex servers' movies and TV
@@ -41,30 +45,30 @@ from this repository. The current release is **01.002.000**; what changed is in 
 
 ## Install
 
-1. Close ProsperoTV (or Nightshade TV).
-2. Download `PPSA99003.zip` from the [latest release](https://github.com/Oliv3rmoon/Nightshade-TV/releases/latest)
+1. Close ProsperoTV (or Physalis).
+2. Download `PPSA99003.zip` from the [latest release](https://github.com/Oliv3rmoon/Physalis/releases/latest)
    and unzip it.
 3. Copy its `PPSA99003` folder over your current one (for example `/data/homebrew/PPSA99003`),
    replacing the files.
 
 It keeps ProsperoTV's title ID, so it replaces ProsperoTV, and your sources, favorites, recent
 channels and settings stay as they are (they live in `/data/prosperotv`). The home
-screen calls it **Nightshade TV**. To go back, copy an
+screen calls it **Physalis**. To go back, copy an
 [official release](https://github.com/ThatGuyKalvin/ProsperoTV/releases) over it the same way. If
 ProsperoTV is installed as an image (`PPSA99003.ffpfsc`), remove the image first, as described in
 [Updating ProsperoTV](#updating-prosperotv) below.
 
 ## Updates
 
-Once per launch Nightshade TV asks GitHub for the newest release of
-[Oliv3rmoon/Nightshade-TV](https://github.com/Oliv3rmoon/Nightshade-TV/releases) that is not a
+Once per launch Physalis asks GitHub for the newest release of
+[Oliv3rmoon/Physalis](https://github.com/Oliv3rmoon/Physalis/releases) that is not a
 pre-release. When it is newer than the one installed and carries `PPSA99003.zip` and
 `SHA256SUMS`, the app offers **Update now**, **What's new** and **Later**; **Update now** downloads
 the ZIP, checks it against `SHA256SUMS`, and replaces the app's files once it has closed. Your data
 in `/data/prosperotv` is not touched. Like ProsperoTV, it needs filesystem access for this (the
 payload loader on port 9021 that a ShadowMountPlus setup runs); without it, update by copying the
 folder as above. A release ZIP built by this repository's workflow can be checked with
-`gh attestation verify PPSA99003.zip -R Oliv3rmoon/Nightshade-TV`.
+`gh attestation verify PPSA99003.zip -R Oliv3rmoon/Physalis`.
 
 ## Plex
 
@@ -78,7 +82,7 @@ code opens it) and enter the code; the TV asks plex.tv every two seconds and the
 15 minutes. Every server the account reaches, its own and those shared with it, then becomes a
 source, and the first is used. Sources shows the account's name, **Find servers** (servers shared
 since, with no new code) and **Sign out** (forgets the account on this console and removes its
-servers). In your Plex account's device list the console is **Nightshade TV (PS5)**.
+servers). In your Plex account's device list the console is **Physalis (PS5)**.
 
 **What works.**
 
@@ -139,7 +143,7 @@ No PlxNative code is included.
 
 ## Requests, bugs and support
 
-- **Ask for a fix or a feature:** [open an issue](https://github.com/Oliv3rmoon/Nightshade-TV/issues/new/choose),
+- **Ask for a fix or a feature:** [open an issue](https://github.com/Oliv3rmoon/Physalis/issues/new/choose),
   or ask in **[nightly on Discord](https://discord.gg/pSqgRU3YP9)**.
 - **Bugs in my releases:** open an issue here. Turn on **Diagnostic log** in Settings first; Settings
   shows where the log is. Leave playlist addresses and passwords out.
@@ -149,18 +153,18 @@ No PlxNative code is included.
 
 - **[ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV)**, by **BlackBearReloaded**
   ([GitHub](https://github.com/blackbearreloaded)), who created it and wrote most of it, carried on
-  by **ThatGuyKalvin** and its contributors and testers (see [Thanks](#thanks) below). Nightshade TV
+  by **ThatGuyKalvin** and its contributors and testers (see [Thanks](#thanks) below). Physalis
   is their app with a new look and a new update source; the credit for it is theirs.
 - **[iptv-org](https://github.com/iptv-org/iptv)**, whose community-maintained public playlists
-  ProsperoTV first played. Neither Nightshade TV nor ProsperoTV ships them now, and neither is
+  ProsperoTV first played. Neither Physalis nor ProsperoTV ships them now, and neither is
   affiliated with iptv-org.
 - **[Nightshade](https://github.com/Oliv3rmoon/Nightshade)**, whose palette, art code and GitHub
   update check this release reuses.
 - **[PlxNative](https://github.com/GLinnik21/plx-native)**, by **GLinnik21**, whose documentation
   and code of the Plex API were the reference for the [Plex](#plex) source.
 
-Nightshade TV is an unofficial release. ProsperoTV is made by BlackBearReloaded, ThatGuyKalvin and
-their contributors; neither they nor Sony endorse Nightshade TV. It is free software under the GNU
+Physalis is an unofficial release. ProsperoTV is made by BlackBearReloaded, ThatGuyKalvin and
+their contributors; neither they nor Sony endorse Physalis. It is free software under the GNU
 General Public License, version 3 or later, as ProsperoTV is ([LICENSE](LICENSE)). Everything below
 is the official README.
 

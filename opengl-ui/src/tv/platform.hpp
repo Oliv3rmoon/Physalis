@@ -82,7 +82,7 @@ ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl
 void pin_host(const std::string &entry);
 
 // ---- updates ----
-// Once per launch the machine asks GitHub whether Oliv3rmoon/Nightshade-TV has a
+// Once per launch the machine asks GitHub whether Oliv3rmoon/Physalis has a
 // newer release (the console: ps5/src/tv_update.cpp), and can replace the app with
 // it: the release is downloaded and unpacked beside the app, and its files
 // take the place of the old ones once the app has closed. Nothing is changed

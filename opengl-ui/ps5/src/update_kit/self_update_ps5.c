@@ -125,7 +125,7 @@ static int console_fetch(void *user, const char *url, char *body, size_t capacit
     result = curl_easy_perform(easy);
     (void)curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &code);
     curl_easy_cleanup(easy);
-    /* Nightshade TV: an answer too long is told from a failed transfer. */
+    /* Physalis: an answer too long is told from a failed transfer. */
     if (sink.overflow)
     {
         *status = (int)code;
@@ -378,7 +378,7 @@ self_update_check_result self_update_check_self(self_update_offer *offer)
     return self_update_check(self_update_console(), title, version, offer);
 }
 
-/* Nightshade TV: the same, asking the releases of a GitHub repository instead (github_release.h).
+/* Physalis: the same, asking the releases of a GitHub repository instead (github_release.h).
    The catalog is not asked: it lists ProsperoTV's own releases. */
 self_update_check_result self_update_check_as_from(const char *repository, const char *name,
                                                    const char *title_id, const char *installed,

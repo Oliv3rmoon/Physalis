@@ -1,8 +1,26 @@
 # Changelog
 
-What changed in each release of Nightshade TV, newest first. A release's notes on GitHub are in
-`docs/releases/<version>.md`. What changed in ProsperoTV before Nightshade TV is in the earlier
-files there.
+What changed in each release of Physalis, newest first. Physalis was called Nightshade TV until
+01.002.000, and the entries for those releases keep the name they had. A release's notes on GitHub
+are in `docs/releases/<version>.md`. What changed in ProsperoTV before Nightshade TV is in the
+earlier files there.
+
+## Physalis v1.002.001: renamed from Nightshade TV
+
+Renamed to Physalis; same app, same title ID, your settings stay. Physalis, a Nightshade app, is
+the Chinese lantern, a relative of the nightshade. What changed:
+
+- **The name.** The PS5 home screen, the header, the opening, the About page, the update dialog,
+  the notifications and every message say Physalis, in all nine languages, and so does the phone
+  remote's page. In your Plex account's device list the console is Physalis (PS5).
+- **Updates.** The app now asks [Oliv3rmoon/Physalis](https://github.com/Oliv3rmoon/Physalis/releases)
+  for a newer release. The old address, Oliv3rmoon/Nightshade-TV, forwards there, so Nightshade TV
+  01.002.000 and older still find this release and **Update now** installs it over themselves. The
+  release's files are named as before: `PPSA99003.zip` and `SHA256SUMS`.
+- **What stays.** The title ID (PPSA99003) and the data folder (`/data/prosperotv`), so it installs
+  over Nightshade TV and keeps your sources, favorites, recent channels, Plex account and
+  settings. Backups keep their file names. The Nightshade theme and look, the art and the credit to
+  ProsperoTV and its authors are as they were.
 
 ## Nightshade TV v1.002.000: Plex
 

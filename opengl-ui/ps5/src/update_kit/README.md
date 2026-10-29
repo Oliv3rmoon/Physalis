@@ -10,7 +10,7 @@ ProsperoEden uses them:
 | `console_curl.{h,c}` | what PacBrew's libcurl needs to run in a native title: name lookups on the system resolver, libc stand-ins, the `fcntl` wrapper, the console's certificate list |
 | `self_update.{h,c}` | the signed-catalog check (Ed25519, sequence guard) and the update job |
 | `self_update_ps5.c` | the console side: libcurl, OpenSSL, the payload loader on port 9021 |
-| `github_release.{h,c}` | Nightshade TV: the check against a GitHub repository's releases, which the app uses instead of the catalog (below) |
+| `github_release.{h,c}` | Physalis: the check against a GitHub repository's releases, which the app uses instead of the catalog (below) |
 | `self_update_sha256.{h,c}`, `self_update_protocol.h` | shared with the helper |
 
 `self_update_ps5.c` takes the paths of the helper, of the app's `param.json`
@@ -29,13 +29,13 @@ is taken from ShadowMountPlus's `/user/app/<TITLEID>/mount.lnk` before the
 usual folders are scanned, with an image install refused). It unpacks with
 miniz 3.0.2 (`ps5/third_party/miniz`, MIT).
 
-## Nightshade TV: updates from GitHub releases
+## Physalis: updates from GitHub releases
 
 `github_release.{h,c}` are Nightshade's (Oliv3rmoon/Nightshade,
 `headless/update_check/github_release.*`), for this repository's releases:
 the app asks GitHub for the newest release of the repository the build names
 (`TV_UPDATE_REPOSITORY` in `../tv_build_options.h`, written by
-`ps5/patch_tree.py`; `Oliv3rmoon/Nightshade-TV`) instead of the catalog, and
+`ps5/patch_tree.py`; `Oliv3rmoon/Physalis`) instead of the catalog, and
 fills the same offer, so the download, the helper and the dialog are the
 kit's, unchanged. The release must not be a draft or a pre-release, its tag
 must be a content version higher than the app's (the workflow tags a release

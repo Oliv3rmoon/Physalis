@@ -11,7 +11,7 @@ namespace ptv
 {
 
 // The colours the screens name directly. Everything else comes from the theme.
-// Nightshade TV: Nightshade's own palette (its "nightly" theme, Oliv3rmoon/Nightshade
+// Physalis: Nightshade's own palette (its "nightly" theme, Oliv3rmoon/Nightshade
 // headless/prosperoeden/pe/ui/theme.cpp): black and red, clean and dark.
 namespace tone
 {

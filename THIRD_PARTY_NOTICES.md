@@ -149,7 +149,7 @@ The BlackBear icon, selection artwork, and default selection track
 (C) 2026 BlackBearReloaded, and distributed under GPL-3.0-or-later. The track
 is titled `Night Drive`.
 
-In Nightshade TV, Oliv3rmoon's release of ProsperoTV, the icon and the home-screen
+In Physalis, Oliv3rmoon's release of ProsperoTV, the icon and the home-screen
 pictures (`sce_sys/icon0.png`, `pic0.dds` and `pic1.dds` with their source PNGs, and
 their copies in `opengl-ui/ps5/sce_sys/`) take the place of the BlackBear icon and
 selection artwork. They are drawn by `tools/render-home-art.py`, after Nightshade's

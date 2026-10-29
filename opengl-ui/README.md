@@ -5,9 +5,9 @@ ProsperoTV's interface since 01.000.020, built on the
 frosted panels over a red sky, a hero for the channel in focus, a scrolling
 grid with the alphabet beside it, a search drawer, a tuning screen that runs
 until a channel's first picture, and an update that installs itself when a
-newer version is listed on prosperostore.net. In Nightshade TV the panels are
+newer version is listed on prosperostore.net. In Physalis the panels are
 black glass over a near-black sky with a low red glow (`src/tv/theme.*`), and
-the update comes from Oliv3rmoon/Nightshade-TV's GitHub releases (see
+the update comes from Oliv3rmoon/Physalis's GitHub releases (see
 [Updates](#updates)). It is drawn with OpenGL (ps5-opengl
 SDK) instead of the earlier versions' SDL and RmlUi; the catalog, the stores and
 the player are the same sources as before, used from the folder above.
@@ -160,7 +160,7 @@ audio decoders, the keyboard) are loaded before access is asked for.
 
 ## Updates
 
-Once per launch the app asks GitHub whether Oliv3rmoon/Nightshade-TV has a
+Once per launch the app asks GitHub whether Oliv3rmoon/Physalis has a
 newer release (`ps5/src/update_kit/README.md`): the newest release that is not
 a pre-release, tagged with a content version higher than this one and carrying
 `PPSA99003.zip` and the `SHA256SUMS` that gives its SHA-256. The catalog on

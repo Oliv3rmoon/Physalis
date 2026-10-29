@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Nightshade TV - The update check against GitHub releases, built and run on the host.
+# Physalis - The update check against GitHub releases, built and run on the host.
 # Copyright (C) 2026 Oliv3rmoon
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Builds opengl-ui/tests/github_release_check.cc with the update kit's files it tests
@@ -43,11 +43,11 @@ class GitHubReleaseTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr[-3000:])
         self.assertIn("PASS", result.stdout)
 
-    def test_the_build_names_nightshade_tvs_repository(self):
+    def test_the_build_names_physalis_repository(self):
         options = (ROOT / "opengl-ui/ps5/src/tv_build_options.h").read_text(encoding="utf-8")
-        self.assertIn('#define TV_UPDATE_REPOSITORY "Oliv3rmoon/Nightshade-TV"', options)
+        self.assertIn('#define TV_UPDATE_REPOSITORY "Oliv3rmoon/Physalis"', options)
         patch = (ROOT / "opengl-ui/ps5/patch_tree.py").read_text(encoding="utf-8")
-        self.assertIn('"TV_UPDATE_REPOSITORY", "Oliv3rmoon/Nightshade-TV"', patch)
+        self.assertIn('"TV_UPDATE_REPOSITORY", "Oliv3rmoon/Physalis"', patch)
         update = (ROOT / "opengl-ui/ps5/src/tv_update.cpp").read_text(encoding="utf-8")
         # The catalog lists ProsperoTV's own releases: the app never asks it.
         self.assertNotIn("self_update_check(", update)

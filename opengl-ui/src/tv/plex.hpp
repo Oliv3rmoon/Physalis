@@ -1,4 +1,4 @@
-// Nightshade TV - Plex as a source: sign-in on the TV, servers, libraries and playback.
+// Physalis - Plex as a source: sign-in on the TV, servers, libraries and playback.
 // Copyright (C) 2026 Oliv3rmoon
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
@@ -38,12 +38,12 @@ inline constexpr char kLinkUrl[] = "https://plex.tv/link";
 struct Identity
 {
     std::string client_id;
-    std::string product = "Nightshade TV";
+    std::string product = "Physalis";
     std::string version = "0";
     // Plex's transcoder answers 400 without a platform it knows; "Generic" is one (PlxNative).
     std::string platform = "Generic";
     std::string device = "PlayStation 5";
-    std::string device_name = "Nightshade TV (PS5)";
+    std::string device_name = "Physalis (PS5)";
 };
 // "Name: value" lines: Accept JSON, the identity, and the token when there is one.
 std::vector<std::string> headers(const Identity &identity, std::string_view token = {});

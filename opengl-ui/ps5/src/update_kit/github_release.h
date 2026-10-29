@@ -1,5 +1,5 @@
 /*
- * Nightshade TV - Updates from a GitHub repository's releases instead of the ProsperoStore catalog.
+ * Physalis - Updates from a GitHub repository's releases instead of the ProsperoStore catalog.
  * SPDX-FileCopyrightText: Copyright 2026 Oliv3rmoon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -34,8 +34,8 @@
  * C11; also compiles as C++. The decisions build without a network (UPDATE_CHECK_NO_NETWORK) and
  * are tested on the host (opengl-ui/tests/github_release_check.cc, tests/test_github_release.py).
  */
-#ifndef NIGHTSHADE_TV_GITHUB_RELEASE_H
-#define NIGHTSHADE_TV_GITHUB_RELEASE_H
+#ifndef PHYSALIS_GITHUB_RELEASE_H
+#define PHYSALIS_GITHUB_RELEASE_H
 
 #include "self_update.h"
 
@@ -149,7 +149,7 @@ extern "C"
 
     /* The whole check against `repository`'s releases through the kit's platform: fills `offer`
      * as self_update_check() does; `name` is the app's name as the helper's notification says it
-     * ("Nightshade TV was updated to 01.001.010"). Blocking. */
+     * ("Physalis was updated to 01.001.010"). Blocking. */
     self_update_check_result github_release_check(const self_update_platform *platform,
                                                   const char *repository, const char *name,
                                                   const char *title_id, const char *installed,

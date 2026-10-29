@@ -226,7 +226,7 @@ static int json_string(json_cursor *c, char *out, size_t size)
         }
         if (out != NULL)
         {
-            /* Nightshade TV: the values are read as C strings; a NUL inside one would cut it. */
+            /* Physalis: the values are read as C strings; a NUL inside one would cut it. */
             if (code == 0)
                 return 0;
             if (used + count >= size)
@@ -278,7 +278,7 @@ static int json_skip_value(json_cursor *c)
     return 0;
 }
 
-/* Nightshade TV: the readers github_release.c needs, as Nightshade has them. */
+/* Physalis: the readers github_release.c needs, as Nightshade has them. */
 
 int update_check_json_value(const char *json, size_t length, const char *key,
                             const char **value, size_t *value_length)

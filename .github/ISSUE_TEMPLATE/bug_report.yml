@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 name: "Bug report"
-description: "Something in Nightshade TV does not work as it should"
+description: "Something in Physalis does not work as it should"
 title: "[Bug] "
 labels: ["bug"]
 body:
@@ -12,7 +12,7 @@ body:
       value: |
         **Before you post**
 
-        - Nightshade TV ships no channels. Do not post or ask for playlists, provider names, logins or stream links.
+        - Physalis ships no channels. Do not post or ask for playlists, provider names, logins or stream links.
         - Remove playlist addresses and credentials from logs and screenshots.
         - Do not post Sony SDK files, firmware, decrypted system files, keys or links to them.
   - type: input
@@ -62,7 +62,7 @@ body:
       label: "How did you install it?"
       options:
         - "Update in the app"
-        - "GitHub release ZIP (Oliv3rmoon/Nightshade-TV)"
+        - "GitHub release ZIP (Oliv3rmoon/Physalis)"
         - "Manual copy (USB or FTP)"
         - "Built from source"
     validations:

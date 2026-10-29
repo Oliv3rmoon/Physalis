@@ -32,7 +32,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
-          # Nightshade TV: a repository without the release yet gets it, as a pre-release that is
+          # Physalis: a repository without the release yet gets it, as a pre-release that is
           # never "latest" (the app's update check reads releases/latest and must not find it).
           if ! gh release view build-cache --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create build-cache --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \

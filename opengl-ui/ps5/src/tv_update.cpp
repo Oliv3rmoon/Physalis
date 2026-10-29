@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Both are the PS5 Native App Boilerplate's self-update kit (update_kit/, see
-// its README.md). Nightshade TV: the check asks GitHub for the newest release of
-// this build's repository (TV_UPDATE_REPOSITORY, Oliv3rmoon/Nightshade-TV;
+// its README.md). Physalis: the check asks GitHub for the newest release of
+// this build's repository (TV_UPDATE_REPOSITORY, Oliv3rmoon/Physalis;
 // update_kit/github_release.h), not the catalog, which lists ProsperoTV's own
 // releases: a release that is no pre-release, carrying PPSA99003.zip and the
 // SHA256SUMS that gives its SHA-256, and tagged with a content version higher
@@ -50,7 +50,7 @@ using hui::sys::log;
 constexpr std::size_t kStackBytes = 1024u * 1024u;
 // Where the check asks, and the name the helper's notification gives the app.
 constexpr const char *kRepository = TV_UPDATE_REPOSITORY;
-constexpr const char *kName = "Nightshade TV";
+constexpr const char *kName = "Physalis";
 static_assert(sizeof(TV_UPDATE_REPOSITORY) > 1, "a build asks a repository's releases");
 
 std::mutex g_lock;

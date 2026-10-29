@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Nightshade TV - Draw the home-screen pictures: the icon, the background and the launch picture.
+# Physalis - Draw the home-screen pictures: the icon, the background and the launch picture.
 # Copyright (C) 2026 Oliv3rmoon
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Draw Nightshade TV's home-screen pictures in Nightshade's style.
+"""Draw Physalis's home-screen pictures in Nightshade's style.
 
 usage: python3 tools/render-home-art.py   (needs Pillow and NumPy)
 
@@ -214,7 +214,7 @@ def berries(image, x, y, r):
 
 
 
-# ---- Nightshade TV's own: the set, the aerial, the screen's light -----------------------------
+# ---- Physalis's own: the set, the aerial, the screen's light -----------------------------
 
 
 def fill(box, top, bottom):

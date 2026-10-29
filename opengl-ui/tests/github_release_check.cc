@@ -1,4 +1,4 @@
-// Nightshade TV - Host check of the update check against a GitHub repository's releases.
+// Physalis - Host check of the update check against a GitHub repository's releases.
 // SPDX-FileCopyrightText: Copyright 2026 Oliv3rmoon
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
@@ -29,8 +29,8 @@ namespace
 // SHA256SUMS), pretty-printed and shortened to the fields that matter; Compact() gives it as
 // GitHub sends it.
 const std::string kRelease = R"json({
-  "url": "https://api.github.com/repos/Oliv3rmoon/Nightshade-TV/releases/417000001",
-  "html_url": "https://github.com/Oliv3rmoon/Nightshade-TV/releases/tag/01.001.010",
+  "url": "https://api.github.com/repos/Oliv3rmoon/Physalis/releases/417000001",
+  "html_url": "https://github.com/Oliv3rmoon/Physalis/releases/tag/01.001.010",
   "id": 417000001,
   "author": {
     "login": "github-actions[bot]",
@@ -39,7 +39,7 @@ const std::string kRelease = R"json({
   },
   "tag_name": "01.001.010",
   "target_commitish": "main",
-  "name": "Nightshade TV 01.001.010",
+  "name": "Physalis 01.001.010",
   "draft": false,
   "immutable": false,
   "prerelease": false,
@@ -47,7 +47,7 @@ const std::string kRelease = R"json({
   "published_at": "2026-11-02T10:20:00Z",
   "assets": [
     {
-      "url": "https://api.github.com/repos/Oliv3rmoon/Nightshade-TV/releases/assets/653000001",
+      "url": "https://api.github.com/repos/Oliv3rmoon/Physalis/releases/assets/653000001",
       "id": 653000001,
       "name": "PPSA99003.zip",
       "label": "",
@@ -60,10 +60,10 @@ const std::string kRelease = R"json({
       "size": 61234567,
       "digest": "sha256:5b2f0c9e7a1d4e3f8b6a0c2d9e1f7a3b5c8d0e2f4a6b8c0d2e4f6a8b0c2d4e6f",
       "download_count": 0,
-      "browser_download_url": "https://github.com/Oliv3rmoon/Nightshade-TV/releases/download/01.001.010/PPSA99003.zip"
+      "browser_download_url": "https://github.com/Oliv3rmoon/Physalis/releases/download/01.001.010/PPSA99003.zip"
     },
     {
-      "url": "https://api.github.com/repos/Oliv3rmoon/Nightshade-TV/releases/assets/653000002",
+      "url": "https://api.github.com/repos/Oliv3rmoon/Physalis/releases/assets/653000002",
       "id": 653000002,
       "name": "SHA256SUMS",
       "label": "",
@@ -75,26 +75,26 @@ const std::string kRelease = R"json({
       "state": "uploaded",
       "size": 80,
       "download_count": 0,
-      "browser_download_url": "https://github.com/Oliv3rmoon/Nightshade-TV/releases/download/01.001.010/SHA256SUMS"
+      "browser_download_url": "https://github.com/Oliv3rmoon/Physalis/releases/download/01.001.010/SHA256SUMS"
     }
   ],
-  "tarball_url": "https://api.github.com/repos/Oliv3rmoon/Nightshade-TV/tarball/01.001.010",
-  "zipball_url": "https://api.github.com/repos/Oliv3rmoon/Nightshade-TV/zipball/01.001.010",
-  "body": "## New since 01.001.000\r\n\r\n### Watching\r\n\r\n- **Faster zapping.** Channels open\r\n  sooner. See [the README](https://github.com/Oliv3rmoon/Nightshade-TV#readme).\r\n- `SHA256SUMS` is checked.\r\n\r\n> [!NOTE]\r\n> Your sources stay as they are.\r\n\r\nThanks to everyone testing — and to **BlackBearReloaded**.",
+  "tarball_url": "https://api.github.com/repos/Oliv3rmoon/Physalis/tarball/01.001.010",
+  "zipball_url": "https://api.github.com/repos/Oliv3rmoon/Physalis/zipball/01.001.010",
+  "body": "## New since 01.001.000\r\n\r\n### Watching\r\n\r\n- **Faster zapping.** Channels open\r\n  sooner. See [the README](https://github.com/Oliv3rmoon/Physalis#readme).\r\n- `SHA256SUMS` is checked.\r\n\r\n> [!NOTE]\r\n> Your sources stay as they are.\r\n\r\nThanks to everyone testing — and to **BlackBearReloaded**.",
   "reactions": {
     "total_count": 1,
     "heart": 1
   }
 })json";
 
-constexpr const char *kRepository = "Oliv3rmoon/Nightshade-TV";
-constexpr const char *kName = "Nightshade TV";
+constexpr const char *kRepository = "Oliv3rmoon/Physalis";
+constexpr const char *kName = "Physalis";
 constexpr const char *kTitle = "PPSA99003";
-constexpr const char *kApi = "https://api.github.com/repos/Oliv3rmoon/Nightshade-TV/releases/latest";
+constexpr const char *kApi = "https://api.github.com/repos/Oliv3rmoon/Physalis/releases/latest";
 constexpr const char *kSums =
-    "https://github.com/Oliv3rmoon/Nightshade-TV/releases/download/01.001.010/SHA256SUMS";
+    "https://github.com/Oliv3rmoon/Physalis/releases/download/01.001.010/SHA256SUMS";
 constexpr const char *kZip =
-    "https://github.com/Oliv3rmoon/Nightshade-TV/releases/download/01.001.010/PPSA99003.zip";
+    "https://github.com/Oliv3rmoon/Physalis/releases/download/01.001.010/PPSA99003.zip";
 // The repository under an earlier name, which GitHub sends on to the new one.
 constexpr const char *kOldRepository = "Oliv3rmoon/ProsperoTV-Nightshade";
 constexpr const char *kOldApi =
@@ -293,8 +293,8 @@ void Addresses()
 {
     char url[256];
     assert(github_release_url(url, sizeof(url), kRepository) != 0 && std::strcmp(url, kApi) == 0);
-    for (const char *bad : {"Oliv3rmoon", "/Nightshade-TV", "Oliv3rmoon/", "Oliv3rmoon/a/b",
-                            "-x/y", "x/..", "x/.", "a b/c", "x/y?z", "x/y#z", "x_y/z"})
+    for (const char *bad : {"Oliv3rmoon", "/Physalis", "Oliv3rmoon/", "Oliv3rmoon/a/b", "-x/y",
+                            "x/..", "x/.", "a b/c", "x/y?z", "x/y#z", "x_y/z"})
         assert(github_release_url(url, sizeof(url), bad) == 0 && url[0] == '\0');
     assert(github_release_repository_valid("o-1/.github") &&
            github_release_repository_valid("x/y.z_w-1"));
@@ -417,7 +417,8 @@ void Releases()
     // Without both files, uploaded in full, there is no offer: the ZIP is PPSA99003.zip, nothing
     // else (another title's, a renamed one, Nightshade's form).
     for (const char *other : {"PPSA99008.zip", "PPSA99003.zip.sig", "PPSA99003-01.001.010.zip",
-                              "Nightshade-TV-v1.001.010.zip", "ppsa99003.zip", "PPSA99003.ZIP"})
+                              "Nightshade-TV-v1.001.010.zip", "Physalis-v1.001.010.zip",
+                              "ppsa99003.zip", "PPSA99003.ZIP"})
         assert(Evaluate(With(kRelease, "\"name\": \"PPSA99003.zip\"",
                              std::string("\"name\": \"") + other + "\""),
                         "01.001.000") == GITHUB_RELEASE_NO_ZIP);
@@ -479,7 +480,7 @@ void GitHubCheck()
     assert(std::strcmp(offer.version, "01.001.010") == 0 && std::strcmp(offer.artifact, kZip) == 0);
     assert(std::strcmp(offer.sha256, kDigest) == 0 && offer.size == 61234567);
     assert(std::strcmp(offer.page,
-                       "https://github.com/Oliv3rmoon/Nightshade-TV/releases/tag/01.001.010") == 0);
+                       "https://github.com/Oliv3rmoon/Physalis/releases/tag/01.001.010") == 0);
     assert(std::string(offer.notes) == kNotes && offer.notes_truncated == 0);
     assert(self_update_url_allowed(offer.artifact, 0) == 1);
     // From ProsperoTV's last release, installed by hand and then updated, the same.
@@ -558,7 +559,7 @@ void GitHubCheck()
     for (const std::string &to :
          {std::string("https://example.net/repositories/1422000007/releases/latest"),
           std::string("https://api.github.com/repos/ThatGuyKalvin/ProsperoTV/releases/latest"),
-          std::string("https://github.com/Oliv3rmoon/Nightshade-TV/releases/latest")})
+          std::string("https://github.com/Oliv3rmoon/Physalis/releases/latest")})
     {
         moved(301);
         network.answers[kOldApi] = redirect(301, to);
@@ -587,8 +588,8 @@ void GitHubCheck()
     assert(Check(kRepository, "01.001.000", &offer, &report, "../PPSA99003") ==
                SELF_UPDATE_UNKNOWN &&
            network.asked.empty());
-    for (const char *name : {"", " Nightshade", "Nightshade TV ", "Nightshade  TV", "Night\nshade",
-                             "Nightshade/TV", "Nightshade TV and a name far too long for it"})
+    for (const char *name : {"", " Physalis", "Physalis ", "Phys  alis", "Phys\nalis",
+                             "Physalis/TV", "Physalis and a name that is far too long for it"})
         assert(Check(kRepository, "01.001.000", &offer, &report, kTitle, name) ==
                    SELF_UPDATE_UNKNOWN &&
                report.reason == GITHUB_RELEASE_BAD_ARGUMENT && network.asked.empty());
@@ -746,7 +747,7 @@ void NoCatalog()
     assert(!all.empty());
     for (const std::string &url : all)
         assert(url.rfind("https://api.github.com/", 0) == 0 ||
-               url.rfind("https://github.com/Oliv3rmoon/Nightshade-TV/", 0) == 0);
+               url.rfind("https://github.com/Oliv3rmoon/Physalis/", 0) == 0);
 }
 
 } // namespace

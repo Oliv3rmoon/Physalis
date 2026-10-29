@@ -1,4 +1,4 @@
-// Nightshade TV - Small API calls on a connection of their own (Plex), beside the player.
+// Physalis - Small API calls on a connection of their own (Plex), beside the player.
 // Copyright (C) 2026 Oliv3rmoon
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
@@ -64,7 +64,7 @@ ApiReply api_request(const ApiRequest &request, const iptv::http::RequestControl
     Call call{&reply.body, request.limit, control};
     console_curl_setup(curl);
     curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "NightshadeTV");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Physalis");
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);

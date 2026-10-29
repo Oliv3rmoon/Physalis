@@ -321,7 +321,7 @@ void GuideSheet::draw(ui::Canvas &canvas) const
         row.item_gap = 30.0f;
         row.cy = 798.0f;
         draw_hint_row(list, fonts, hints, 2, 460, 1060, row);
-        ui::text(list, fonts.regular, tr("Keep Nightshade TV running for recordings and reminders."),
+        ui::text(list, fonts.regular, tr("Keep Physalis running for recordings and reminders."),
                  460, 850, 22, theme.text_muted);
     }
 }
