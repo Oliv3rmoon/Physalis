@@ -5,7 +5,7 @@
 <h1 align="center">Physalis</h1>
 
 <p align="center">
-  <strong>Physalis, a Nightshade app: live TV for PS5 homebrew, by Oliv3rmoon. Everything in ProsperoTV, in Nightshade's black and red, updated from its own releases.</strong>
+  <strong>Live TV, movies and your Plex library on PS5 homebrew, in Nightshade's black and red.</strong>
 </p>
 
 <p align="center">
@@ -15,141 +15,87 @@
 <p align="center">
   <a href="https://github.com/Oliv3rmoon/Physalis/releases/latest"><img src="https://img.shields.io/github/v/release/Oliv3rmoon/Physalis?style=for-the-badge&label=download&color=e5484d&labelColor=0d0d0f" alt="Download the latest release"></a>
   <a href="https://discord.gg/pSqgRU3YP9"><img src="https://img.shields.io/badge/discord-nightly-0d0d0f?style=for-the-badge&logo=discord&logoColor=e5484d" alt="Discord: nightly"></a>
-  <a href="https://buymeacoffee.com/oliv3rmoon"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-0d0d0f?style=for-the-badge&logo=buymeacoffee&logoColor=e5484d" alt="Buy me a coffee"></a>
+  <a href="https://github.com/Oliv3rmoon/Physalis/stargazers"><img src="https://img.shields.io/github/stars/Oliv3rmoon/Physalis?style=for-the-badge&logo=github&logoColor=e5484d&color=e5484d&labelColor=0d0d0f" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-0d0d0f?style=for-the-badge&labelColor=0d0d0f&color=e5484d" alt="GPL-3.0-or-later"></a>
+  <a href="https://buymeacoffee.com/oliv3rmoon"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-0d0d0f?style=for-the-badge&logo=buymeacoffee&logoColor=e5484d" alt="Buy me a coffee"></a>
 </p>
 
-Physalis is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. It is
-[ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV) 01.000.090, the native IPTV client for
-PS5 homebrew, with the look of [Nightshade](https://github.com/Oliv3rmoon/Nightshade) and updates
-from this repository. The current release is **01.002.002**; what changed is in the
-[changelog](docs/CHANGELOG.md).
+Physalis is a native IPTV client for the PS5, and a Nightshade app by **[Oliv3rmoon](https://github.com/Oliv3rmoon)**: your own playlists and accounts, a programme guide, recording and multiview, now with Plex. The current release is **01.002.002**, a full release; what changed is in the [changelog](docs/CHANGELOG.md).
 
-## What you get
+## Why Physalis
 
-- **Everything in ProsperoTV.** Your own M3U playlists, Xtream Codes accounts and portals, the
-  programme guide, movies and series, recordings, multiview, the phone remote and the TV's own
-  remote, in nine languages. Nothing is taken out.
-- **Nightshade's look.** Black and red, clean and dark: black glass panels, a red accent, a
-  near-black sky with a low red glow, and the nightshade flower as the mark, the icon and the
-  home-screen pictures. The Ocean and Forest themes are still in **Settings**.
-- **Updates from its own releases.** At the start it asks
-  [Oliv3rmoon/Physalis](https://github.com/Oliv3rmoon/Physalis/releases) for a newer
-  release, shows its notes, and installs it with **Update now**. It never offers ProsperoTV's own
-  releases, which would put the old look back.
-- **Plex.** Sign in on the TV with a code at plex.tv/link, and your Plex servers' movies and TV
-  shows are in **On demand**, beside your playlists and accounts. A file plays as it is when the
-  PS5 decodes it, through the server's transcoder otherwise. See [Plex](#plex).
-- **No channels of its own, free ones a press away.** Like ProsperoTV, it ships no channel list:
-  every channel comes from a source you add. With none set up, Square on Live TV adds
-  [iptv-org](https://github.com/iptv-org/iptv)'s public list as a playlist source, which then loads
-  at every start; remove it on the Sources tab like any other.
+- **Your Plex library on the PS5.** Sign in with a code at plex.tv/link and your Plex servers' movies and TV shows appear in **On demand**, beside your playlists. A file plays as it is when the PS5 can decode it, through the server's transcoder otherwise, and Plex keeps your place on every device. See [Plex](#plex).
+- **Free channels in one press.** With no source set up, **Square** on Live TV adds a community-maintained public playlist as an ordinary source. Physalis ships no channel list of its own, and you remove that source like any other.
+- **A full TV app.** M3U playlists, Xtream accounts, MAC-code portals and tuners on your network; a programme guide with search and catch-up where the provider keeps an archive; movies and series; recording to USB; two or four channels side by side in multiview; pausing live TV; HDR10 and HLG.
+- **Made for the couch.** DualSense navigation at up to 4K, a phone remote you pair with a QR code, the TV's own remote over HDMI-CEC, favorites in folders, a parental PIN and a children's mode, in nine languages.
+- **Nightshade's look.** Black glass panels, a red accent, a near-black sky with a low red glow, and the nightshade flower on the icon and the home-screen pictures. The Ocean and Forest themes are still in **Settings**.
+- **Updates from its own releases.** At the start it asks this repository for a newer release, shows its notes and installs it with **Update now**, after checking the ZIP against `SHA256SUMS`.
+- **Your setup carries over.** It keeps the title ID (`PPSA99003`) and the data folder (`/data/prosperotv`), so your sources, favorites, recent channels and settings stay as they are.
+
+## Physalis and ProsperoTV
+
+Physalis installs over ProsperoTV, so here is where they differ. A dash means the other app's README doesn't list it.
+
+| | Physalis | ProsperoTV |
+| --- | --- | --- |
+| M3U, Xtream, MAC-code portals and network tuners | Yes | Yes |
+| Programme guide, recording, multiview, phone remote | Yes | Yes |
+| Plex libraries as a source | Yes (since 01.002.000) | — |
+| Free public channels in one press | Yes (since 01.002.002) | — |
+| Look | Nightshade, black and red; Ocean and Forest | Dusk, Ocean and Forest |
+| Where updates come from | This repository's GitHub releases | prosperostore.net |
+| Title ID and data folder | `PPSA99003`, `/data/prosperotv` | The same |
 
 ## Install
 
-1. Close ProsperoTV (or Physalis).
-2. Download `PPSA99003.zip` from the [latest release](https://github.com/Oliv3rmoon/Physalis/releases/latest)
-   and unzip it.
-3. Copy its `PPSA99003` folder over your current one (for example `/data/homebrew/PPSA99003`),
-   replacing the files.
+1. Close the app if it is running.
+2. Download `PPSA99003.zip` from the [latest release](https://github.com/Oliv3rmoon/Physalis/releases/latest) and unzip it.
+3. Copy its `PPSA99003` folder over your current one (for example `/data/homebrew/PPSA99003`), replacing the files.
 
-It keeps ProsperoTV's title ID, so it replaces ProsperoTV, and your sources, favorites, recent
-channels and settings stay as they are (they live in `/data/prosperotv`). The home
-screen calls it **Physalis**. To go back, copy an
-[official release](https://github.com/ThatGuyKalvin/ProsperoTV/releases) over it the same way. If
-ProsperoTV is installed as an image (`PPSA99003.ffpfsc`), remove the image first, as described in
-[Updating ProsperoTV](#updating-prosperotv) below.
+It keeps the original's title ID, so it installs over the original and your data stays where it is. The home screen calls it **Physalis**. Physalis starts with no channels: add a playlist or an account on the **Sources** tab, press **Square** on the empty Live TV screen for the free public channels, or choose **Add Plex**.
 
-## Updates
-
-Once per launch Physalis asks GitHub for the newest release of
-[Oliv3rmoon/Physalis](https://github.com/Oliv3rmoon/Physalis/releases) that is not a
-pre-release. When it is newer than the one installed and carries `PPSA99003.zip` and
-`SHA256SUMS`, the app offers **Update now**, **What's new** and **Later**; **Update now** downloads
-the ZIP, checks it against `SHA256SUMS`, and replaces the app's files once it has closed. Your data
-in `/data/prosperotv` is not touched. Like ProsperoTV, it needs filesystem access for this (the
-payload loader on port 9021 that a ShadowMountPlus setup runs); without it, update by copying the
-folder as above. A release ZIP built by this repository's workflow can be checked with
-`gh attestation verify PPSA99003.zip -R Oliv3rmoon/Physalis`.
+To go back, copy an [official release](https://github.com/ThatGuyKalvin/ProsperoTV/releases) over it the same way. If the original was installed as an image (`PPSA99003.ffpfsc`), remove the image first; [the guide](docs/GUIDE.md#updating-prosperotv) says how.
 
 ## Plex
 
-A Plex server is one more source in **Sources**. Its movies and TV shows are in **On demand**, in
-the screens an Xtream account's use; it has no live channels, so Live TV says so and opens On
-demand.
+A Plex server is one more source. In **Sources**, choose **Add Plex**: a four-character code appears beside a QR code. On a phone or computer signed in to Plex, open [plex.tv/link](https://plex.tv/link) and enter it. Every server your account reaches, its own and those shared with it, becomes a source, and its movies and TV shows are in **On demand**, with seasons, episodes, posters and details, search, Continue and the parental rules.
 
-**Signing in.** In **Sources**, choose **Add Plex**. A four-character code appears beside a QR
-code. On a phone or computer signed in to Plex, open [plex.tv/link](https://plex.tv/link) (the QR
-code opens it) and enter the code; the TV asks plex.tv every two seconds and the code lasts about
-15 minutes. Every server the account reaches, its own and those shared with it, then becomes a
-source, and the first is used. Sources shows the account's name, **Find servers** (servers shared
-since, with no new code) and **Sign out** (forgets the account on this console and removes its
-servers). In your Plex account's device list the console is **Physalis (PS5)**.
+- **Plays as it is, or through the transcoder.** MP4, MOV, Matroska, WebM or MPEG-TS with H.264 (8-bit), HEVC or VP9 up to 3840 x 2160 play directly; anything else goes through the server's transcoder over HLS.
+- **Limits.** No Plex Home profiles; no live TV, DVR, music or photos from Plex; no quality choice for the transcoder.
+- **Not yet run on a console with a real Plex server.** The host tests check it against recorded answers from plex.tv and a server.
 
-**What works.**
+The full list of what works and what doesn't is in [the guide](docs/GUIDE.md#plex).
 
-- Movie libraries as Movies and show libraries as TV shows, each library a category, with seasons
-  and episodes, posters, plot, cast, genres, year and rating. The lists are saved on the console
-  and refreshed on the source's schedule, like an Xtream account's.
-- Search, Home and Continue, newest first, hidden categories and parental rules, as for other
-  on-demand titles.
-- Resuming where a title was left, on any device (Plex's resume point); progress told to the server
-  every ten seconds and when playback stops (sent in the background, so the menu comes back at
-  once); the title marked watched when it plays to its end.
-- The connection: the local address at home, the remote one away, Plex's relay as a last resort,
-  https before http, as [PlxNative](https://github.com/GLinnik21/plx-native) ranks them, all of
-  them asked at once. A connection counts when its `/identity` names the server. Plain http is
-  tried only on your own network (when plex.tv says the server stands behind your router), since
-  over http any box could answer for it; a `*.plex.direct` name is dialled at the address plex.tv
-  gives for it, so https works behind a router that blocks such names. The server is looked for
-  once per launch, and until it has answered nothing is sent to it: no poster, list or title, and
-  no token. One that does not answer says **Can't be reached** in Sources; its saved lists stay,
-  and **Options** looks for it again. Signing in saves only servers that answered; **Find
-  servers** adds the others later.
-- Sound and subtitle tracks from the playback menu, as far as the player reads them in the file or
-  in the transcoder's stream.
+## Docs
 
-**Direct play and the transcoder.** A file plays as it is when the PS5 player decodes it: MP4,
-MOV, Matroska, WebM or MPEG-TS, with H.264 (8-bit), HEVC or VP9 video up to 3840 x 2160 and AAC,
-AC-3, E-AC-3, MP2, MP3 or DTS sound, in one part. Anything else (AVI, AV1, 10-bit H.264, TrueHD,
-a film in several parts) plays through the server's universal transcoder over HLS, which copies
-H.264 or HEVC video when the file has it and sends AAC, AC-3 or E-AC-3 sound. A file that should
-play as it is but does not open falls back to the transcoder. What the server can transcode is up
-to the server (its processor, and Plex Pass for hardware transcoding).
-
-**Limits.**
-
-- No Plex Home profiles: the account that signs in is the one used.
-- No live TV or DVR, music or photos from Plex, and no Watchlist, Discover or Plex's own hubs.
-- Search is the app's own, over the downloaded lists; Plex's server search is not used.
-- No quality choice for the transcoder: it aims at the PS5's limit, 4K at up to 40 Mbit/s.
-- Plex servers are not sent to another console with **Share with another console**, not on the
-  phone remote's source form, and not in settings backups: each console signs in itself, and
-  again after a restore.
-- Not yet run on a console with a real Plex server: the host tests check it against recorded
-  answers from plex.tv and a server.
-
-**The tokens.** They are kept as Xtream passwords are: each server's token in its source's
-password, the account's token and this console's client identifier in `prosperotv-plex-v1.txt`
-beside the sources (`/data/prosperotv/config`, or the title's storage). A backup leaves the Plex
-servers out, and signing out overwrites their rows in the file rather than only removing them.
-They travel
-in `X-Plex-Token` headers only, to the server they belong to, never in an address, so no cache,
-receipt or failure report has them, and the diagnostic log never contains them or the account's
-name.
-
-The Plex API is used as [PlxNative](https://github.com/GLinnik21/plx-native) (a fast native Plex
-client for LG webOS by GLinnik21, GPL-3.0) documents and uses it: its notes and code were the
-reference for the sign-in, the connection ranking, the transcoder's parameters and the timeline.
-No PlxNative code is included.
+- **[Guide](docs/GUIDE.md):** updates, Plex in full, sources, the programme guide, controls, the phone remote and the TV remote.
+- **[Changelog](docs/CHANGELOG.md)**, and a [release](https://github.com/Oliv3rmoon/Physalis/releases) page for each version.
+- **Setting up and fixing:** [Getting started](docs/GETTING_STARTED.md), [Troubleshooting](docs/TROUBLESHOOTING.md), [Configuration](docs/CONFIGURATION.md).
+- **Building it:** [Architecture](docs/ARCHITECTURE.md), [Testing](docs/TESTING.md), [Deployment](docs/DEPLOYMENT.md), [Contributing](CONTRIBUTING.md), [Roadmap](ROADMAP.md).
 
 ## Requests, bugs and support
 
-- **Ask for a fix or a feature:** [open an issue](https://github.com/Oliv3rmoon/Physalis/issues/new/choose),
-  or ask in **[nightly on Discord](https://discord.gg/pSqgRU3YP9)**.
-- **Bugs in my releases:** open an issue here. Turn on **Diagnostic log** in Settings first; Settings
-  shows where the log is. Leave playlist addresses and passwords out.
+- **Ask for a fix or a feature:** [open an issue](https://github.com/Oliv3rmoon/Physalis/issues/new/choose), or ask in **[nightly on Discord](https://discord.gg/pSqgRU3YP9)**.
+- **Bugs in my releases:** open an issue here. Turn on **Diagnostic log** in Settings first; Settings shows where the log is. Leave playlist addresses and passwords out.
 - **If my work helps you,** you can [buy me a coffee](https://buymeacoffee.com/oliv3rmoon).
+
+## The Nightshade family
+
+Physalis is one of seven repositories in the Nightshade family, all by [Oliv3rmoon](https://github.com/Oliv3rmoon): the same black-and-red look, one Discord.
+
+| App | What it is |
+| --- | --- |
+| [**Nightshade**](https://github.com/Oliv3rmoon/Nightshade) | The Switch emulator for PS5 homebrew |
+| **Physalis** (this repo) | Live TV, movies and Plex on the PS5 |
+| [**Datura**](https://github.com/Oliv3rmoon/Datura) | Game streaming from your PC to the PS5 |
+| [**Mandrake**](https://github.com/Oliv3rmoon/Mandrake) | PS1 emulation, with two emulators |
+| [**Dulcamara**](https://github.com/Oliv3rmoon/Dulcamara) | RPG Maker 2000 and 2003 games, and Ren'Py visual novels |
+| [**Solanum**](https://github.com/Oliv3rmoon/Solanum) | A store for open-source PS5 homebrew, with its catalog [on the web](https://oliv3rmoon.github.io/Solanum-Catalog/) |
+| [**Belladonna**](https://github.com/Oliv3rmoon/Belladonna) | Nightshade's PS5 Vulkan driver |
+
+## Built on
+
+[ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV) 01.000.090, the native IPTV client for PS5 homebrew by BlackBearReloaded and ThatGuyKalvin.
 
 ## Credits
 
@@ -158,599 +104,20 @@ No PlxNative code is included.
   by **ThatGuyKalvin** and its contributors and testers (see [Thanks](#thanks) below). Physalis
   is their app with a new look and a new update source; the credit for it is theirs.
 - **[iptv-org](https://github.com/iptv-org/iptv)**, whose community-maintained public playlists
-  ProsperoTV first played. Neither Physalis nor ProsperoTV ships them now, and neither is
-  affiliated with iptv-org.
+  ProsperoTV first played, and whose list **Square** on an empty Live TV screen adds as a source.
+  Neither Physalis nor ProsperoTV ships it, neither hosts the streams, and neither is affiliated
+  with iptv-org.
 - **[Nightshade](https://github.com/Oliv3rmoon/Nightshade)**, whose palette, art code and GitHub
   update check this release reuses.
 - **[PlxNative](https://github.com/GLinnik21/plx-native)**, by **GLinnik21**, whose documentation
   and code of the Plex API were the reference for the [Plex](#plex) source.
-
-Physalis is an unofficial release. ProsperoTV is made by BlackBearReloaded, ThatGuyKalvin and
-their contributors; neither they nor Sony endorse Physalis. It is free software under the GNU
-General Public License, version 3 or later, as ProsperoTV is ([LICENSE](LICENSE)). Everything below
-is the official README.
-
----
-
-<p align="center">
-  <img src="sce_sys/icon0.png" width="128" alt="ProsperoTV icon">
-</p>
-
-<h1 align="center">ProsperoTV</h1>
-
-<p align="center">
-  <strong>A native IPTV client for PlayStation 5 homebrew</strong><br>
-  Browse, search, and save channels from your own M3U playlists or Xtream
-  Codes provider with an offline-first SQLite cache, a
-  controller-first interface, native PS5 video decoding, and updates that
-  install themselves.
-</p>
-
-![ProsperoTV Live TV screen](docs/images/prosperotv.png)
-
-> [!NOTE]
-> **Version 01.000.020 brings a new interface.** It is built on
-> [ps5-homebrew-ui](https://github.com/LedyBacer/ps5-homebrew-ui) and lives in
-> [`opengl-ui/`](opengl-ui/); the catalog, the stores, and the player are the ones earlier
-> versions used. Coming from 01.000.015 or older: see [Updating ProsperoTV](#updating-prosperotv).
-
-## Highlights
-
-- Bring your own channels: add an HTTP(S) M3U playlist or connect an Xtream
-  Codes account. ProsperoTV ships with no third-party list of its own.
-- Search by name and filter by country, language, category, and advertised
-  quality with continuous controller paging.
-- Decode H.264, HEVC, and VP9 through native PS5 video paths at resolutions up
-  to 4K.
-- Keep the catalog, favorites, recent channels, and source state fast and
-  persistent under `/data/prosperotv`, where an update never touches them.
-- Update from inside the app: a newer version listed on
-  [prosperostore.net](https://prosperostore.net) is offered at launch with its release
-  notes, downloaded, and installed in place.
-- Handle live HLS buffering, stale segments, alternate URLs, and failed feeds
-  without destabilizing the next playback session.
-- Use a full-screen OpenGL interface at up to 4K with DualSense navigation,
-  channels drawn as television sets, an alphabet beside every list, native
-  text input, dedicated Favorites, and an optional playback statistics overlay.
-
-## Project foundations
-
-> [!IMPORTANT]
-> **Built on the [PS5 Native App Boilerplate](https://github.com/LedyBacer/ps5-native-app-boilerplate).**
-> ProsperoTV retains its C++20 application structure, reproducible clean-room
-> runtime, FSELF tooling, tests, deployment flow, and release automation.
-
-> [!IMPORTANT]
-> **ProsperoTV includes no channel list.** It is an independent client: every
-> channel comes from a source you add, this project hosts no streams, and
-> channel availability can change without notice.
-
-| Identity | Value |
-| --- | --- |
-| Shell title | `ProsperoTV` |
-| Title ID | `PPSA99003` |
-| Shell category | Media |
-| Current version | `01.000.090` |
-| Release-version source | [`sce_sys/param.json`](sce_sys/param.json) |
-| Writable data | `/data/prosperotv`; the title's own `/download0` when filesystem access is not available |
-
-## Features
-
-### Sources
-
-- Add your own sources: HTTP(S) M3U/M3U8
-  playlists, Xtream Codes accounts (masked password entry), MAC-code portals
-  (Stalker/Ministra style), and tuners or servers on the home network such as
-  HDHomeRun and Tvheadend.
-- Keep several sources, each with its own cache, visible categories, and
-  refresh schedule: daily, weekly, or only when asked.
-- Load large providers: up to 250,000 channels from one source, read as the
-  list downloads.
-- Choose which of a provider's categories appear. Hiding a parent hides all of
-  its subcategories.
-- Add and edit playlists and accounts from a phone or a computer with the
-  [phone remote](#phone-remote), instead of the on-screen keyboard.
-- In Sources, R2 opens per-source HTTP settings: user agent, referrer and custom
-  request headers. Enter one `Name: value` at a time on TV (empty saves, `-`
-  clears all), or paste up to 16 lines / 4 KiB in the paired phone editor.
-  Saved custom values stay hidden on the phone; a blank field keeps them.
-  Channel user agents/referrers and built-in authentication take precedence.
-  Custom headers stay on the source's HTTP origin and are removed on redirects
-  to another origin. USB playlists use each initial stream URL as their origin.
-
-### Browsing
-
-- Open the last verified catalog at once from a local cache while a refresh
-  runs in the background.
-- Browse Live TV by the provider's own categories and subcategories, shown as
-  the row of filters above the channels, beside Favorites and Recent.
-- Search by channel name, and filter by country, language, category, and
-  advertised quality, with the native PS5 keyboard.
-- See channel logos on the tiles and on the large television.
-- Preview the focused live channel, with sound, on the large television after
-  a moment on it.
-- Turn pages by holding L2 or R2, faster the longer they are held, in Live TV,
-  Movies, and Series; jump by letter with the column beside every list.
-- Keep up to 65,536 favorites, organized in named folders.
-- Hide the channels that did not open the last time, and start on the channel
-  watched last, from Settings.
-- Return to the same screen, group, page, and channel after playback closes.
-
-### Programme guide
-
-- See what each channel is showing now and next, from the guide a playlist or
-  an account points to.
-- Open the full grid of channels and hours, and start a channel from it.
-- Search programmes by title, not only channels by name.
-- Play a programme that has already been shown, on channels whose provider
-  keeps a catch-up archive.
-
-### Movies and series
-
-- Browse movies, shows, seasons, and episodes from an Xtream account or a
-  classified M3U playlist in **On demand**, next to Live TV.
-- See the provider's newest movies and shows first in every category, by the
-  date an Xtream provider added them; titles it gives no date follow by title,
-  so an M3U playlist is listed by title.
-- Open Movies or TV shows from the saved copy, read in the background while
-  the status line says so; the On demand menu counts both without loading
-  either, and switching between them keeps the list left at hand.
-- Carry on with a show from **Continue**, at the top of its episode list: the
-  episode watched last, from the time it was left at.
-- Play H.264 and HEVC in MP4 or Matroska, up to 4K.
-
-### While watching
-
-- Zap with up and down, go back to the channel watched before with one
-  button, or pick another channel from a list over the picture.
-- See a banner with the channel's name and its programme when a channel opens
-  or when asked for.
-- Choose among the audio tracks a channel carries, and show its subtitles.
-- Press Options for the playback menu: one page with audio, sound delay,
-  subtitles and their size and color, the picture's shape, chapters and
-  quality, each opening a list with the value in use ticked. Picture shapes
-  are shown as small previews, and Fit names the video's own shape.
-- Choose an HLS rendition manually, or enable
-  [Auto quality reduction](docs/AUTOMATIC_HLS_QUALITY.md) for buffering on a slow
-  connection. Auto only reduces quality and requires compatible renditions.
-- Pause live TV and go back a few minutes.
-- Set a sleep timer.
-- Record live TV to USB with Touchpad, or schedule a recording or reminder from
-  the guide's Options menu. Keep the app running; recording uses an additional
-  provider connection.
-- Watch two or four live channels side by side in Multiview, with sound
-  following the focused one. Four 720p H.264 feeds are validated on hardware;
-  higher resolutions depend on the decoder resources available.
-- Codec, resolution, frame rate, and bitrate appear for five seconds when playback
-  starts, with the sound's format, channels, and whether the console's decoder
-  (HW) or software (SW) is decoding it, then disappear like the bottom playback
-  banner. Press **Touchpad + R1** to show them again for five seconds, or turn
-  on **Stats line** under Troubleshooting in Settings to keep them on screen.
-
-### Picture and sound
-
-- Play HLS and direct MPEG-TS streams with H.264 or HEVC video, and direct
-  WebM streams with VP9 Profile 0, through the PS5's hardware decoders.
-- Show HDR10 and HLG channels as HDR, with SDR tone mapping when HDR output is
-  not available.
-- Present each field of an interlaced broadcast separately to keep its motion.
-- Play AAC, MP2, AC-3, E-AC-3, and DTS sound (the core of a DTS-HD track), with
-  Stereo by default and optional [decoded 5.1 surround](docs/SURROUND_AUDIO.md)
-  for compatible HDMI receivers.
-- Keep the picture in step with the sound: frames are timed against the sound
-  being played.
-- Adapt buffering to live HLS timing, and recover from stale segments and
-  alternate addresses without giving up on the channel.
-- Show a tuning screen until the channel's first picture, and say why a
-  channel did not open: HTTP status, regional restriction, unsupported
-  encryption or codec, malformed playlist, or decoder error.
-
-### Household
-
-- Lock adult categories behind a parental PIN, and switch to a mode that shows
-  only the channels for children.
-- Set a daily viewing allowance and bedtime for the children's mode.
-- Keep favorites, recent channels, and sources separate for each person signed
-  in on the console.
-- Use the interface in English, Spanish, French, German, Italian, Portuguese,
-  Dutch, Arabic, or Hebrew, with right-to-left layouts where appropriate.
-  Follow the console language or choose an override in Settings and restart.
-  Provider content keeps its own text.
-- Back up sources, favorites, and settings to a USB drive, and restore them on
-  this console or another.
-- [Share sources and favorites between consoles](docs/CONSOLE_SHARING.md) over
-  an encrypted local connection, verifying the receiver's fingerprint first.
-
-### The app
-
-- Control the app from a phone's browser with the
-  [phone remote](#phone-remote).
-- Update in place: a newer version is offered at launch with **Update now**,
-  **What's new**, and **Later**, and everything saved is kept.
-- Keep all data under `/data/prosperotv`, where an update never touches it; a
-  failed refresh leaves the last good catalog untouched.
-- Send a useful problem report: a diagnostic log switch in Settings (off by
-  default, no account details), and a failure report saved to a USB drive.
-- Recover a minimal report after a caught fatal signal and skip automatic
-  playback on the next launch. Forced termination and power loss cannot be
-  recorded by the crash handler.
-- Use a full-screen OpenGL interface at up to 4K, built with the
-  [ps5-homebrew-ui](https://github.com/LedyBacer/ps5-homebrew-ui) kit,
-  with fonts for Latin, Greek, Cyrillic, Chinese, Japanese, and Korean channel
-  names, interface sounds, and a Reduce motion setting. Settings also offers
-  Dusk, Ocean and Forest themes, opaque high-contrast menus, and 25% larger text
-  (applied when the menu next opens). Channel artwork and video retain their colors.
-  A black screensaver protects idle menus and paused video after 1, 5 or 10 minutes;
-  five minutes is the default, and it can be turned off. The first button wakes
-  the screen without activating a control. Active multiview stays visible.
-
-Provider requirements and validation for these features are in
-[the implementation guide](docs/ROADMAP_IMPLEMENTATION.md).
-
-## Video support
-
-| Codec | Supported path | Output classes |
-| --- | --- | --- |
-| H.264 / AVC | MPEG-TS, HLS, MP4 and Matroska; Baseline, Main, and High profiles within the configured level limits | 720p, 1080p, 1440p, 2160p |
-| HEVC | MPEG-TS, HLS, MP4 and Matroska; Main / Main10, 8-bit or 10-bit 4:2:0, SDR output | 720p, 1080p, 1440p, 2160p |
-| VP9 | Direct WebM; Profile 0, 8-bit 4:2:0 | 1080p, 1440p, 2160p |
-
-Sources up to 1080p use a 1920×1080 presentation surface. Native 1440p video
-is scaled to the 4K output surface, while 2160p video is decoded and presented
-at 3840×2160. Codec and renderer details are documented in
-[Architecture](docs/ARCHITECTURE.md) and [Testing](docs/TESTING.md).
-
-## Controls
-
-| Input | Action |
-| --- | --- |
-| D-pad / left stick | Move focus; Right past the last column reaches the letters |
-| Cross | Select, open, or play |
-| Circle | Back, dismiss, or clear active filters |
-| Square | Add or remove a favorite |
-| Triangle | Open advanced search and filters |
-| L1 / R1 | Switch between Home, Live TV, On demand, Favorites, Sources, Settings, and About |
-| L2 / R2 | Previous or next page; hold to keep turning |
-| Triangle on a configurable source | Edit the custom M3U URL or Xtream account |
-| Square in Sources | Cycle daily, weekly and manual refresh |
-| Touchpad in Live TV / Favorites | Provider categories / favorite folders |
-| R1 inside categories / folders | Channel number pad: enter a number, then Watch |
-| L1 inside categories / folders | Rename, hide/restore, or move channels in the list |
-| R3 in the channel browser | Open the programme guide |
-| L3 in Live TV / Favorites | Open Multiview; Square chooses a channel, Triangle switches two/four tiles, R3 mutes, Cross opens full screen |
-| Options | Refresh the selected catalog source |
-| Cross during playback | Pause or resume; in the open channel list, watch the channel |
-| L2 during live TV | Open or close the channel list |
-| Up at the top of a screen, or Circle on Live TV | Focus the tabs; Left / Right change the tab, Down, Cross or Circle go back in; Left of Home is Search |
-| Circle during playback | Close the open panel, or stop playback and return to the browser |
-| Options during playback | Open or close the audio/subtitle/picture panel |
-| L1 / R1 in the playback panel | Switch between Audio, Subtitles and Picture |
-| Touchpad + R1 during playback | Show video and sound codecs and FPS/performance statistics for five seconds |
-
-During playback, Options then L1 opens Picture. Fit preserves the decoded picture's
-proportions by default; Stretch fills the screen, while 4:3 and 16:9 correct
-anamorphic or incorrectly advertised proportions. The choice lasts for the current
-playback session. Picture correction applies to live TV, movies and episodes.
-
-### TV remote
-
-The television's own remote works too, over HDMI-CEC, as it does in the
-console's menus. Turn on **Settings > System > HDMI > Enable HDMI Device Link**
-on the console (and the TV's CEC setting, for example BRAVIA Sync on Sony TVs).
-The remote can be used alongside the controller or instead of it.
-
-| Remote key | In the menu | During playback |
-| --- | --- | --- |
-| Arrows | Move focus; Up from the top of a screen reaches the tabs, Left / Right there change the tab, and Left of Home is Search | As the D-pad |
-| OK | Select, open, or play | As Cross: pause or resume, or watch the channel in the open list |
-| Back | Back | Close the open panel, or stop playback |
-| Play / Pause | Play the channel in focus | Pause or resume, even with a list or the panel open |
-| Rewind / Fast forward | Previous or next page | Step back and on, as Left and Right |
-| Channel − / Channel + | As L1 / R1, if the TV passes them on | As L1 / R1: previous or next channel on live TV |
-| Menu / Options | As Options | Open or close the playback panel |
-
-Which keys a television passes on is up to the television; arrows, OK and Back
-are the ones every CEC remote sends.
-
-## Channels, lists and playback in detail
-
-Provider channel numbers (`tvg-chno` / `channel-number` in M3U, `num` in Xtream,
-`number` in MAC portals) appear in the channel hero and playback channel list.
-Numbers such as `7.2` and leading zeros are preserved. Channels without a number
-keep their alphabetical position. The number pad searches only the current
-visible list; when numbers repeat, narrow the list before choosing one. Existing
-cached lists acquire provider numbers on their next refresh.
-
-In Live TV or Favorites, focus a channel and open Touchpad, then L1 for channel
-options. Names are saved locally without changing provider IDs, guide matching,
-or parental rules. An empty name or **Use provider name** restores the original.
-**Hidden channels** lets you restore individual channels, including when the
-current list is empty. A hidden provider category must also be shown for its
-channels to appear.
-
-**Move up/down** swaps a channel with its visible neighbor. Live lists share one
-saved order; Favorites and its folders share a separate order. Both survive
-refreshes and restarts; new channels are appended alphabetically. **Reset list
-order** restores alphabetical order for the current kind of list.
-
-During playback, Options opens the Playback sheet with Sound, Subtitles,
-Picture and Video. Picture offers Fit, Stretch, corrected 4:3 or 16:9, Fill
-(crop), and 125% or 150% zoom, each with a preview of its shape. Controls and captions stay within the visible crop. Text subtitles
-have Small/Medium/Large sizes and White/Yellow/Cyan colors; image subtitles
-retain the provider's artwork. These choices are saved for the next video.
-
-In multiview, Touchpad keeps the selected live channel playing in a corner while you browse lists or the programme guide. L3 in the live list closes picture in picture.
-
-Live TV also offers Recently added (first seen by this app) and Most watched (successful viewing sessions), with history saved separately for each profile and source.
-
-On Demand: Square opens provider title details; R3 filters loaded metadata by genre/year or changes sorting (Recently added, the default, or Title A-Z, Title Z-A, Newest year, Highest rating; a show's episodes default to episode order). Movie details are fetched when opened and retained in the local cache.
-
-## Phone remote
-
-Connect your phone to the same Wi-Fi, then select **Settings → Pair a phone**
-on the TV. Scan the QR code (or type the displayed address) and enter the
-six-digit code on the website. The code expires after two minutes, is accepted
-once, and is cancelled when you close the pairing screen. No app installation
-or internet connection is needed for the remote. The dialog closes automatically
-when a newly paired or remembered browser connects, and the TV shows "Phone connected".
-
-The TV remembers up to eight browsers. A saved browser reconnects after a page
-reload or app restart without another code. Its cookie lasts one year; private
-browsing, clearing cookies, or a changed console IP may require pairing again.
-Use **Forget this phone** on the website or **Forget paired phones** in TV
-Settings to revoke access. Pairing must be saved on the console before the
-website reports success.
-
-Use the arrows and OK to navigate, Back to return or stop playback, and the
-section and favorite buttons for the corresponding controller actions.
-While a channel is playing, **Favorite** adds or removes that channel without
-stopping playback; the phone confirms the change after it is saved.
-Type a channel name on the phone and tap **Search on TV** (or the keyboard's Search
-key). **Clear** removes the text query; existing category/country filters still
-apply. Search accepts up to 39 Unicode characters and is available in the
-channel browser. It also works while the TV's native search keyboard is open.
-The **Search & filters on TV** button opens the existing advanced search panel.
-
-Open **Channels and guide** to browse the active source on the phone, search
-channel names or programmes on now, and read upcoming programmes. Tap a channel
-to watch it, including while another channel or movie is playing. Hidden and
-parentally restricted channels stay unavailable; changing sources on the TV
-requires reloading the phone's channel list.
-
-The **Volume** sliders in TV Settings and on the phone control the same saved
-ProsperoTV volume, including live playback and interface sounds. Zero mutes it;
-100% keeps the stream's original level. This does not change the television's
-hardware volume.
-
-The remote uses HTTP on your local network. Use it on a trusted LAN and do not
-forward its port to the internet. The app requests port 8888 and uses an assigned
-port when that is unavailable. Use the current address on the pairing screen;
-the saved browser credential remains valid if only the port changes. Controller
-use continues even if the remote cannot start.
-
-## Requirements
-
-Building requires Linux, WSL, or a Linux CI runner. On Ubuntu, Debian, or WSL:
-
-```bash
-sudo apt update
-sudo apt install clang-18 clang-format-18 clang-tidy-18 curl git lld-18 make \
-  pkg-config python3 python3-pip python3-venv tar unzip wget libsqlite3-dev \
-  cmake ninja-build libpng-dev libjpeg-dev zlib1g-dev
-```
-
-The build downloads, verifies, and caches the public PS5 Payload SDK, zlib,
-PacBrew's SQLite port, and GoogleTest below the
-ignored `.deps/` directory. No proprietary Sony SDK, firmware module,
-encryption key, or game asset is included or fetched.
-
-Run the read-only prerequisite check before building:
-
-```bash
-make doctor
-```
-
-See [Getting started](docs/GETTING_STARTED.md) and
-[Native tooling](docs/NATIVE_TOOLING.md) for detailed environment setup.
-
-## Build
-
-[`sce_sys/param.json`](sce_sys/param.json) is the source of truth for the app
-identity and release version. Keep `PPSA99003` when publishing an update;
-changing the title ID creates a separate PS5 title.
-
-```bash
-# Lint and run the host tests of the shared catalog, stores, and player.
-make lint
-make test
-
-# The released app: the interface in opengl-ui/ on top of those sources.
-opengl-ui/tools/run-tests.sh
-opengl-ui/ps5/assemble.sh
-make -C ../prosperotv-ui-build app
-```
-
-Release outputs are written beside the repository:
-
-```text
-../prosperotv-ui-build/dist/PPSA99003/       complete title folder
-../prosperotv-ui-build/dist/PPSA99003.zip    the release download
-```
-
-GitHub Releases provide `PPSA99003.zip`, which contains the complete
-`PPSA99003` title folder, and `SHA256SUMS`. See
-[`opengl-ui/README.md`](opengl-ui/README.md) for how that build is put
-together. A release ZIP built by GitHub Actions can
-be checked with the GitHub CLI:
-`gh attestation verify PPSA99003.zip -R ThatGuyKalvin/ProsperoTV`
-(releases built from now on, not earlier ones).
-
-The repository root still builds the interface of 01.000.015 and earlier
-(`make check`, `make app`); it shares the catalog, stores, and player with
-the released app and is kept for their tests. It is no longer released.
-
-## Install and development deployment
-
-Extract `PPSA99003.zip` and upload its complete `PPSA99003` folder to
-`/data/homebrew`, producing `/data/homebrew/PPSA99003/eboot.bin`.
-[ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) then puts
-ProsperoTV on the home screen.
-
-Do not upload the ZIP itself or copy only `eboot.bin`; the app also requires
-its runtime module, fonts, sounds, artwork, metadata, and the two helper
-programs beside `eboot.bin`.
-
-ProsperoTV asks the console's payload loader (port 9021, which a
-ShadowMountPlus setup already runs) for filesystem access when it starts. With
-it, the app keeps its files in `/data/prosperotv` and can update itself.
-Without it, the app runs in its own storage as earlier versions did and is
-updated by hand.
-
-### Updating ProsperoTV
-
-From 01.000.020 on, ProsperoTV checks [prosperostore.net](https://prosperostore.net)
-once per launch. When a newer version is listed it offers **Update now**,
-**What's new**, and **Later**. The update downloads the release, closes the
-app, and replaces its files; sources, favorites, recent channels, and settings
-stay as they are. An app installed as an image cannot update itself.
-
-Coming from 01.000.015 or older, update by hand once:
-
-1. Fully close ProsperoTV.
-2. If you installed `PPSA99003.ffpfsc`, delete it from `/data/homebrew`; the
-   image form is no longer published, and the folder and the image must not
-   both be in ShadowMountPlus scan paths.
-3. Upload the complete `PPSA99003` folder from the ZIP to `/data/homebrew`,
-   replacing the old one.
-4. Restart ShadowMountPlus or the PS5, and wait for the title to be
-   rediscovered before launching it.
-
-Keeping the `PPSA99003` title ID lets the new version find the sources,
-favorites, history, and account the old one saved; it copies them to
-`/data/prosperotv` the first time it starts.
-
-> [!NOTE]
-> ProsperoTV starts with no channels. Add a playlist or account on the Sources
-> tab; its first download is validated and cached, and later launches load the
-> local database immediately.
-
-Xtream support is for credentials supplied by the user. ProsperoTV does not
-include, sell, or discover provider accounts. The server, username, and
-password are stored in a local record beside the app's other data and are never written to the
-application log; the credential record is not encrypted, so do not share title
-data copied from the console.
-
-
-## Test and quality gates
-
-```bash
-make test                      # GoogleTest unit suite and Python integration tests
-make lint                      # formatting, static analysis, metadata, and shell checks
-opengl-ui/tools/run-tests.sh   # the interface and its logic, under ASan and UBSan
-```
-
-Host tests cover M3U and Xtream catalog parsing and persistence, HLS parsing,
-HTTP error classification, MPEG-TS access-unit handling, VP9/WebM parsing,
-native-app layout, runtime handoff, and presentation constraints. Hardware
-acceptance is performed separately on PS5 with bounded channel samples,
-decoder telemetry, and teardown checks.
-
-GitHub Actions runs linting, the host tests, and deterministic runtime
-reproduction on every pull request and version tag, and checks that the tag matches
-`contentVersion`. A pull request's build is uploaded under its number and
-commit: see [Pull-request builds](docs/PULL_REQUEST_BUILDS.md). The same run
-builds the released app from `opengl-ui/` on a clean machine, fetching every
-dependency at its pinned version. A version tag also publishes: the ZIP that
-run built is attached to a GitHub Release with its `SHA256SUMS` and the notes
-in `docs/releases/<version>.md`. No release is built anywhere else. A push to
-`main` builds nothing; a build on `main` is started by hand (**Actions**,
-**Build**, **Run workflow**).
-
-## Source layout
-
-```text
-opengl-ui/                    The released interface, its logic, tests, and console build
-src/main.cpp                  Earlier interface: SDL/RmlUi lifetime and renderer bridge
-src/iptv_app.cpp              Earlier interface: screens, focus, search, and paging
-src/iptv_xtream.cpp           Xtream credentials, Player API parsing, and live URLs
-src/iptv_player.cpp           Stream selection, buffering, playback, and errors
-src/iptv_stream.cpp           MPEG-TS demux and H.264/HEVC access-unit assembly
-src/iptv_native_backend.c     Native video/audio decode and presentation backend
-src/iptv_catalog.cpp          Extended M3U catalog parser
-src/iptv_store.cpp            SQLite last-good catalog persistence
-src/iptv_webm.cpp             Bounded WebM/VP9 parser
-include/                      Public application and media interfaces
-ui/                           Earlier interface: RML, RCSS, fonts, and icons
-sce_sys/                      PS5 metadata and launcher assets
-runtime/                      Reproducible clean-room libc.prx output
-tooling/native/               ELF, FSELF, and runtime-generation tooling
-tests/                        Host unit and integration regressions
-docs/                         Architecture, build, testing, and deployment guides
-```
-
-## Versioning and releases
-
-`contentVersion` in [`sce_sys/param.json`](sce_sys/param.json) drives the
-packaged metadata, the version on the About page, the Git tag, and the GitHub Release. It uses the
-PS5 `NN.NNN.NNN` format without a `v` prefix.
-
-```bash
-# After updating param.json and passing the release gates:
-git tag 01.000.050
-git push origin main 01.000.050
-```
-
-The workflow rejects a mismatched tag, builds the app, and publishes the
-release with the notes in `docs/releases/01.000.050.md`. See
-[Configuration](docs/CONFIGURATION.md) for the coordinated metadata fields.
-
-A release is made by pushing the version tag and in no other way: the
-workflow builds, attests, and publishes `PPSA99003.zip` and `SHA256SUMS`, and
-files are not attached by hand. If the tag has no release yet, the workflow
-creates it; if a release exists without a ZIP (notes written in advance, or a
-draft), it adds the two files and leaves the title and notes alone; if a
-release already has a ZIP, nothing is replaced and the run ends with a
-warning.
-
-## Stream compatibility and limitations
-
-- Public IPTV URLs can disappear, move, become GeoIP-restricted, require
-  provider-specific headers, or reject access at any time.
-- DRM and encrypted HLS media are intentionally unsupported.
-- VP9 currently supports direct, video-only WebM Profile 0 streams. DASH,
-  fragmented MP4, WebM audio, VP9 Profile 2, and general Matroska features are
-  outside the supported path.
-- Interlaced H.264 presents each field separately, preserving broadcast motion
-  at 50 or 60 fields per second. Spatial bob reduces vertical detail in each
-  field; it does not perform motion-adaptive reconstruction. Interlaced streams
-  rejected by the hardware decoder use bounded software decoding up to 1080i.
-- MPEG-TS playback supports H.264 and 8-bit/10-bit HEVC video. Main10 uses hardware
-  decoding and GPU presentation. BT.2020/PQ and HLG select HDR10 output; HLG
-  converts to PQ, and rejected HDR output requests fall back to SDR tone mapping.
-  Static mastering/content-light metadata is retained, but custom HDMI metadata
-  forwarding is unverified. The Main10 presentation path currently requires
-  decoder pitch to match visible width (standard 720p/1080p/1440p/2160p widths).
-  Unsupported audio may
-  continue as silent video when the video path remains valid.
-- A source may hold up to 250,000 channels; a larger one loads its first
-  250,000 and says so. A list of that size takes about 75 MiB of memory and
-  a minute or more to download from a slow provider.
-- An On Demand list (movies, or shows) may hold up to 250,000 titles; a
-  longer one keeps its first 250,000 and says so. A list of 200,000 films
-  takes about 300 MiB of memory while it is open and a minute and a half
-  to download; an entry the provider sends malformed is left out rather
-  than failing the list.
-- Catalog metadata describes a channel but cannot guarantee that its current
-  stream is online, correctly labeled, or compatible with the PS5 decoder.
-
-ProsperoTV displays the most specific detected cause when a channel cannot be
-played. A channel failure does not imply that the app, the source, or the
-console is unavailable.
-
-## Roadmap
-
-Ideas for future versions are kept in [ROADMAP.md](ROADMAP.md). None of them is
-scheduled or promised; issues asking for one, or for something else, are welcome.
+- **[PS5 Native App Boilerplate](https://github.com/LedyBacer/ps5-native-app-boilerplate)**, which
+  ProsperoTV is built on: its C++20 application structure, reproducible clean-room runtime, FSELF
+  tooling, tests, deployment flow and release automation.
+- **[ps5-homebrew-ui](https://github.com/LedyBacer/ps5-homebrew-ui)**, the kit the interface is built with.
+- Built with the [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) by John Törnblom
+  (ps5-payload-dev). Third-party components, authors and licenses are listed in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Thanks
 
@@ -770,16 +137,9 @@ And to the people who contribute code:
 - **Cold** ([GitHub](https://github.com/JMUtechnologies)), for **Normalize channel volume**, which brings quiet and loud channels to a similar level.
 - **Oliv3rmoon** ([GitHub](https://github.com/Oliv3rmoon)), for listing a channel in every category its provider names.
 
-<!-- bbr-footer:start -->
-<!-- Generated by ps5-homebrew-dev-protocol/scripts/readme-footer. Edit the template there, not here. -->
-
-## Credits
-
-Built with the [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) by John Törnblom (ps5-payload-dev).
-Third-party components, authors and licenses are listed in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
 ## License
+
+Physalis is an unofficial release. ProsperoTV is made by BlackBearReloaded, ThatGuyKalvin and their contributors; neither they nor Sony endorse Physalis. It is free software under the GNU General Public License, version 3 or later, as ProsperoTV is ([LICENSE](LICENSE)).
 
 Copyright © 2026 BlackBearReloaded and contributors. Licensed under GPL-3.0-or-later; see [LICENSE](LICENSE). The repository's move to ThatGuyKalvin changes no copyright or licence notice. Third-party components keep their own licenses. Binary releases are built from the tagged source in this repository.
 
@@ -802,4 +162,7 @@ Copyright © 2026 BlackBearReloaded and contributors. Licensed under GPL-3.0-or-
 ## AI assistance
 
 This project was developed with AI assistance from OpenAI and/or Anthropic tools.
-<!-- bbr-footer:end -->
+
+## Help it grow
+
+Like Physalis? **[Star it](https://github.com/Oliv3rmoon/Physalis)** and **[join the Discord](https://discord.gg/pSqgRU3YP9)**.

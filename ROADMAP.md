@@ -3,7 +3,7 @@
 Ideas for future versions: some asked for by the community, some our own.
 None of them is scheduled or promised, and the order inside a group means
 nothing. What the app already does is listed under
-[Features](README.md#features).
+[Features](docs/GUIDE.md#features).
 
 To ask for something that is not here, or to say which of these matters to
 you, [open an issue](https://github.com/ThatGuyKalvin/ProsperoTV/issues).

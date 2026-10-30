@@ -42,7 +42,7 @@ runtime module, fonts, sounds, artwork, metadata, and the two helper programs
 beside `eboot.bin` (`lapy.elf` and `self-updater.elf`). Do not keep a folder
 and an image with the same title ID in scan paths at the same time; coming
 from an installed `PPSA99003.ffpfsc`, delete it first (see
-[Updating ProsperoTV](../README.md#updating-prosperotv)).
+[Updating ProsperoTV](GUIDE.md#updating-prosperotv)).
 
 The ZIP stores every entry with permissions 0777, because the console only
 starts an app whose files are open to every user. A tool that keeps the stored
@@ -55,7 +55,7 @@ build of your own, and for an app without that access.
 ## Build the released app
 
 Building requires Linux, WSL, or a Linux CI runner; the packages are listed in
-the [README](../README.md#requirements) and in the `app` job of
+the [guide](GUIDE.md#requirements) and in the `app` job of
 [`.github/workflows/tooling.yml`](../.github/workflows/tooling.yml), which is
 the build every release comes from. From the repository root:
 

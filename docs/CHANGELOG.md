@@ -65,7 +65,7 @@ Your Plex libraries beside your playlists and accounts. What changed:
 The Plex API is used as [PlxNative](https://github.com/GLinnik21/plx-native) by GLinnik21
 (GPL-3.0), a fast native Plex client for LG webOS, documents and uses it; its notes and code were the
 reference for the sign-in, the connection ranking, the transcoder's parameters and the timeline. No
-PlxNative code is included. Limits are in the README's [Plex](../README.md#plex) section (no Plex
+PlxNative code is included. Limits are in the guide's [Plex](GUIDE.md#plex) section (no Plex
 Home profiles, no Plex live TV, music or photos, no transcoder quality choice).
 
 Built and checked by the host tests, against recorded answers from plex.tv and a server; not yet
