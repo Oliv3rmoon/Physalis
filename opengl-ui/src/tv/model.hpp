@@ -249,6 +249,10 @@ class Model
     const SavedSource *saved_source(std::int64_t id) const;
     void use_saved_source(std::int64_t id);
     void add_source(iptv::SourceKind kind);
+    // Live TV's empty screen, Square: iptv-org's public list as an ordinary playlist source, which then
+    // loads at every start like any other. Physalis ships no list of its own; this one is only added
+    // when the player asks for it, and is removed like any other on the Sources tab.
+    void add_public_channels();
     bool import_usb_playlist(const std::string &path);
     const std::string &usb_root() const
     {

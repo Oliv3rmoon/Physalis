@@ -858,3 +858,7 @@
 {"No Plex server could be reached", {"تعذر الوصول إلى أي خادم Plex", "לא ניתן היה להגיע לאף שרת Plex"}},
 {"Some Plex servers could not be reached", {"تعذر الوصول إلى بعض خوادم Plex", "לא ניתן היה להגיע לחלק משרתי Plex"}},
 {"Find servers adds them once they can be reached.", {"يضيفها البحث عن الخوادم بمجرد إمكانية الوصول إليها.", "חיפוש שרתים מוסיף אותם ברגע שאפשר להגיע אליהם."}},
+{"Add a playlist or account on the Sources tab, or press Square for free public channels.", {"أضف قائمة تشغيل أو حسابًا في علامة تبويب المصادر، أو اضغط المربع لقنوات عامة مجانية.", "הוסיפו רשימת ניגון או חשבון בלשונית המקורות, או לחצו על ריבוע לערוצים ציבוריים בחינם."}},
+{"Free public channels", {"قنوات عامة مجانية", "ערוצים ציבוריים בחינם"}},
+{"Free public channels added", {"تمت إضافة قنوات عامة مجانية", "נוספו ערוצים ציבוריים בחינם"}},
+{"They come from iptv-org's public list. Remove them on the Sources tab.", {"مصدرها قائمة iptv-org العامة. أزلها في علامة تبويب المصادر.", "הם מגיעים מהרשימה הציבורית של iptv-org. הסירו אותם בלשונית המקורות."}},

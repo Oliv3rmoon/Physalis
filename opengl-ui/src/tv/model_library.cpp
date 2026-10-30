@@ -361,6 +361,27 @@ void Model::add_source(iptv::SourceKind kind)
     }
 }
 
+void Model::add_public_channels()
+{
+    static constexpr std::string_view kPublicChannels = "https://iptv-org.github.io/iptv/index.m3u";
+    if (!require_parent() || refreshing() || refresh_thread_ != nullptr)
+        return;
+    for (const auto &source : sources_)
+        if (source.kind == 1 && source.url == kPublicChannels)
+        {
+            select_source_record(source);
+            return;
+        }
+    SavedSource source;
+    source.kind = 1;
+    source.url = kPublicChannels;
+    source.name = "Public channels (iptv-org)";
+    editing_source_id_ = 0;
+    if (commit_source(std::move(source)))
+        notify(Level::ready, tr("Free public channels added"),
+               tr("They come from iptv-org's public list. Remove them on the Sources tab."));
+}
+
 void Model::edit_saved_source(std::int64_t id)
 {
     if (!require_parent() || iptv_ime_busy())

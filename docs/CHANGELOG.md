@@ -5,6 +5,17 @@ What changed in each release of Physalis, newest first. Physalis was called Nigh
 are in `docs/releases/<version>.md`. What changed in ProsperoTV before Nightshade TV is in the
 earlier files there.
 
+## Physalis v1.002.002: free public channels with one press
+
+Channels on a fresh install without typing an address. What changed:
+
+- **Free public channels.** With no source set up, Live TV's empty screen offers **Square: Free
+  public channels**. It adds [iptv-org](https://github.com/iptv-org/iptv)'s community-maintained
+  public list as an ordinary playlist source and chooses it, so its channels load now and at every
+  start. Physalis still ships no list of its own: the list is added only when you press Square,
+  pressing it again doesn't add a second copy, and it's removed on the Sources tab like any other
+  source. Neither Physalis nor iptv-org hosts the streams, and some may not play.
+
 ## Physalis v1.002.001: renamed from Nightshade TV
 
 Renamed to Physalis; same app, same title ID, your settings stay. Physalis, a Nightshade app, is

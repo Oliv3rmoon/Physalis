@@ -920,6 +920,41 @@ TEST_F(AppTest, WithNoSourceLiveTvLeadsToSourcesWhereOneIsSetUp)
     EXPECT_EQ(model_->view.focused_source, 0);
 }
 
+TEST_F(AppTest, WithNoSourceSquareAddsTheFreePublicChannelsOnce)
+{
+    // A console that has never had a source: Square on Live TV's empty screen adds iptv-org's
+    // public list as an ordinary playlist source, chosen, which a second press does not repeat.
+    app_.reset();
+    model_->close();
+    const std::string fresh = dir_ + "/fresh-public";
+    fs::create_directories(fresh);
+    model_ = std::make_unique<ptv::Model>(fresh);
+    ASSERT_TRUE(model_->open());
+    EXPECT_FALSE(model_->has_catalog());
+    model_->view.tab = 1;
+    make_app();
+    ASSERT_EQ(app_->tab(), 1);
+    press(Action::west);
+    EXPECT_EQ(app_->tab(), 1);
+    EXPECT_EQ(host::keyboard_requests(), 0);
+    EXPECT_EQ(model_->active_source(), iptv::SourceKind::Custom);
+    const auto count_public = [&]
+    {
+        int found = 0;
+        for (const auto &source : model_->saved_sources())
+            found += source.kind == 1 && source.url == "https://iptv-org.github.io/iptv/index.m3u";
+        return found;
+    };
+    EXPECT_EQ(count_public(), 1);
+    for (int i = 0; i < 200 && model_->refreshing(); ++i)
+    {
+        idle(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    model_->add_public_channels();
+    EXPECT_EQ(count_public(), 1);
+}
+
 TEST_F(AppTest, SourceUserAgentPickerCancelsSelectsPresetsAndRetainsCustomEntry)
 {
     press(Action::page_next);

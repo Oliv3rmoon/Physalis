@@ -368,6 +368,12 @@ BrowseScreen::Result BrowseScreen::handle(const InputFrame &input, ui::Feedback 
             feedback.play(audio::Cue::select);
             return Result::sources;
         }
+        if (!model.is_set_up(model.active_source()) && input.is_pressed(Action::west))
+        {
+            feedback.play(audio::Cue::select);
+            model.add_public_channels();
+            return Result::none;
+        }
         if (model.active_source() == iptv::SourceKind::Plex && input.is_pressed(Action::confirm))
         {
             feedback.play(audio::Cue::select);
@@ -684,7 +690,7 @@ void BrowseScreen::update(float dt)
     if (!model.has_catalog() && !model.is_set_up(model.active_source()))
     {
         empty_.title = tr("No channels yet");
-        empty_.body = tr("Add a playlist or account on the Sources tab.");
+        empty_.body = tr("Add a playlist or account on the Sources tab, or press Square for free public channels.");
         empty_.action = tr("Open Sources");
         empty_.set_bounds({420.0f, 300.0f, 1080.0f, 480.0f});
     }
@@ -1096,7 +1102,10 @@ int BrowseScreen::hints(ui::Hint *out, int capacity) const
     if (!model.has_catalog())
     {
         if (!model.is_set_up(model.active_source()))
+        {
             add({ui::Button::cross, tr("Open Sources")});
+            add({ui::Button::square, tr("Free public channels")});
+        }
         else if (model.active_source() == iptv::SourceKind::Plex)
             add({ui::Button::cross, tr("Open On demand")});
         else if (model.catalog_failed() && !model.refreshing())

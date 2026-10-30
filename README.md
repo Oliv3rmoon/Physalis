@@ -22,7 +22,7 @@
 Physalis is Oliv3rmoon's release of ProsperoTV by BlackBearReloaded. It is
 [ProsperoTV](https://github.com/ThatGuyKalvin/ProsperoTV) 01.000.090, the native IPTV client for
 PS5 homebrew, with the look of [Nightshade](https://github.com/Oliv3rmoon/Nightshade) and updates
-from this repository. The current release is **01.002.001**; what changed is in the
+from this repository. The current release is **01.002.002**; what changed is in the
 [changelog](docs/CHANGELOG.md).
 
 ## What you get
@@ -40,8 +40,10 @@ from this repository. The current release is **01.002.001**; what changed is in 
 - **Plex.** Sign in on the TV with a code at plex.tv/link, and your Plex servers' movies and TV
   shows are in **On demand**, beside your playlists and accounts. A file plays as it is when the
   PS5 decodes it, through the server's transcoder otherwise. See [Plex](#plex).
-- **No channels of its own.** Like ProsperoTV, it ships no channel list: every channel comes from a
-  source you add.
+- **No channels of its own, free ones a press away.** Like ProsperoTV, it ships no channel list:
+  every channel comes from a source you add. With none set up, Square on Live TV adds
+  [iptv-org](https://github.com/iptv-org/iptv)'s public list as a playlist source, which then loads
+  at every start; remove it on the Sources tab like any other.
 
 ## Install
 
