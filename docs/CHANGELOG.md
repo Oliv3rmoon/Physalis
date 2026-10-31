@@ -5,6 +5,18 @@ What changed in each release of Physalis, newest first. Physalis was called Nigh
 are in `docs/releases/<version>.md`. What changed in ProsperoTV before Nightshade TV is in the
 earlier files there.
 
+## Physalis v1.002.003: the community in About
+
+Where to find other Physalis viewers, from the app. What changed:
+
+- **The community in About.** The About tab now names the community's Discord server,
+  **nightly**, with its address (`discord.gg/pSqgRU3YP9`) and a QR code your phone opens it with.
+  The first time Physalis opens with this version, a card shows the same once, after the opening;
+  any button closes it, and it doesn't come back. In all nine languages.
+- **QR codes right to left.** In Arabic and Hebrew the QR codes (pairing a phone, signing in to
+  Plex and now the community) were mirrored with the rest of the screen. They keep their place but
+  are drawn as made, the way a phone expects to read them.
+
 ## Physalis v1.002.002: free public channels with one press
 
 Channels on a fresh install without typing an address. What changed:
