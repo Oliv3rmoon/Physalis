@@ -39,6 +39,8 @@ struct Settings
     bool diagnostics = false;
     // The playback stats line stays on screen instead of going after five seconds.
     bool stats_line = false;
+    // The card that names the community (tv/community.hpp) was closed: it is not shown again.
+    bool community_seen = false;
 
     bool operator==(const Settings &) const = default;
 };

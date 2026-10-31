@@ -120,6 +120,15 @@ class App
     {
         intro_ = seconds;
     }
+    // The card that names the community once (tv/community.hpp): asked for as a menu opens, it
+    // comes when the menu is free (the opening over, nothing else open), until the viewer has
+    // closed it once. Any button closes it, which is saved in the settings (community_seen),
+    // and it is not shown again. The About tab names the community always.
+    void offer_community();
+    bool community_open() const
+    {
+        return community_open_;
+    }
     // Records the frame. It changes nothing: it may run more than once.
     void draw(Frame &frame, bool themed = true) const;
 
@@ -225,6 +234,8 @@ class App
     void draw_about(ui::Canvas &canvas) const;
     void draw_hints(ui::Canvas &canvas) const;
     void draw_intro(ui::Canvas &canvas) const;
+    void draw_community(ui::Canvas &canvas) const;
+    void close_community(ui::Feedback &feedback);
     void step(const InputFrame &input, float dt, ui::Feedback &feedback);
     void open_storage(StorageAction action, ui::Feedback &feedback);
     void storage_question(ui::Feedback &feedback);
@@ -263,6 +274,12 @@ class App
     int pair_qr_size_ = 0;
     std::vector<bool> plex_qr_; // plex.tv/link
     int plex_qr_size_ = 0;
+    std::vector<bool> community_qr_; // the community's invitation (tv/community.hpp)
+    int community_qr_size_ = 0;
+    bool community_due_ = false;  // asked for, and not yet shown
+    bool community_open_ = false; // on screen until a button closes it
+    float community_wait_ = 0.0f; // seconds the menu has been free while it was due
+    float community_age_ = 0.0f;  // seconds since it came
     unsigned pair_seconds_ = 0;
     bool pairing_open_ = false, pair_requested_ = false, forget_requested_ = false;
     bool settings_changed_ = false;

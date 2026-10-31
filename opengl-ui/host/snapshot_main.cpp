@@ -647,6 +647,20 @@ int main(int argc, char **argv)
         }
         app.set_intro_time(-1.0f);
     }
+    // The card that names the community, as a first start shows it once; any button closes it.
+    {
+        hui::InputFrame input;
+        input.connected = true;
+        app.offer_community();
+        for (int i = 0; i < 120 && !app.community_open(); ++i)
+            app.update(input, kDt, feedback);
+        for (int i = 0; i < 30; ++i)
+            app.update(input, kDt, feedback);
+        render("66-community-card");
+        input.pressed = hui::action_bit(Action::confirm);
+        app.update(input, kDt, feedback);
+        ok = !app.community_open() && app.settings().community_seen && ok;
+    }
     // The tuning screen a channel opens on: halfway through the hand-over,
     // and as the player shows it with its bar part filled.
     {

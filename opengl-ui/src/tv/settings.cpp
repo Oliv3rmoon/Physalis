@@ -66,6 +66,8 @@ Settings load_settings(const std::string &data_dir)
             settings.diagnostics = value != 0;
         else if (std::sscanf(line, "stats_line=%d", &value) == 1)
             settings.stats_line = value != 0;
+        else if (std::sscanf(line, "community_seen=%d", &value) == 1)
+            settings.community_seen = value != 0;
     }
     std::fclose(file);
     return settings;
@@ -85,6 +87,7 @@ bool save_settings(const std::string &data_dir, const Settings &settings)
                  settings.resume_last ? 1 : 0);
     std::fprintf(file, "live_preview=%d\n", settings.live_preview ? 1 : 0);
     std::fprintf(file, "stats_line=%d\n", settings.stats_line ? 1 : 0);
+    std::fprintf(file, "community_seen=%d\n", settings.community_seen ? 1 : 0);
     std::fprintf(file, "audio_normalization=%d\n", settings.audio_normalization ? 1 : 0);
     std::fprintf(file, "audio_surround=%d\n", settings.audio_surround ? 1 : 0);
     std::fprintf(file, "interface_language=%d\n", std::clamp(settings.interface_language, 0, 9));

@@ -5,6 +5,7 @@
 #include "tv/i18n.hpp"
 #include "tv/app.hpp"
 
+#include "tv/community.hpp"
 #include "tv/diag.hpp"
 #include "tv/draw.hpp"
 #include "iptv_ime.h"
@@ -46,13 +47,17 @@ std::vector<bool> encode_qr(const std::string &text, int *size)
     return modules;
 }
 
-// Black on white with four modules of quiet zone, `width` across at most.
+// Black on white with four modules of quiet zone, `width` across at most. Right to left it
+// takes its place on the mirrored screen but is not mirrored itself: a phone reads it as made.
 void draw_qr(gfx::DrawList &list, const std::vector<bool> &modules, int size, float left, float top,
              float width)
 {
     if (size <= 0)
         return;
     const float cell = std::floor(width / (size + 8));
+    if (list.rtl_width() > 0.0f)
+        left = list.rtl_width() - left - cell * (size + 8);
+    const gfx::ScopedRtl unmirrored(list, 0.0f);
     list.rounded_rect({left, top, cell * (size + 8), cell * (size + 8)}, 0, Color::rgb(0xffffff));
     for (int y = 0; y < size; ++y)
         for (int x = 0; x < size; ++x)
@@ -74,6 +79,11 @@ constexpr float kTuningStart = 0.06f;
 // About: the credits at the left, how channels get here at the right.
 constexpr Rect kCreditsPanel{kMargin, 250.0f, 846.0f, 690.0f};
 constexpr Rect kGuidePanel{kMargin + 870.0f, 250.0f, kWidth - 2.0f * kMargin - 870.0f, 690.0f};
+// The card that names the community: where the pairing screen is, after the menu has been free
+// this long (seconds), and the time it takes to come.
+constexpr Rect kCommunityCard{300.0f, 170.0f, 1320.0f, 730.0f};
+constexpr float kCommunityAfter = 0.8f;
+constexpr float kCommunityArrive = 0.35f;
 
 enum FormRow : int
 {
@@ -191,6 +201,7 @@ App::App(Model &model, const ui::Fonts &fonts, std::uint32_t glass_texture,
 {
     const ui::Theme &theme = shared_.theme;
     plex_qr_ = encode_qr(plex::kLinkUrl, &plex_qr_size_);
+    community_qr_ = encode_qr(kCommunityUrl, &community_qr_size_);
 
     shared_.toasts.style.theme = theme;
     shared_.toasts.style.frosted = true;
@@ -544,6 +555,55 @@ void App::draw_plex_sign_in(ui::Canvas &canvas) const
     layout.font = &fonts.semibold;
     layout.cy = 842.0f;
     draw_hint_row(list, fonts, close, 1, 1580, 1200, layout, true);
+}
+
+// The community, once (tv/community.hpp), laid out as the pairing screen is: what it is above,
+// the QR code at the left, the server's name and address at the right.
+void App::draw_community(ui::Canvas &canvas) const
+{
+    auto &list = canvas.list;
+    const auto &fonts = canvas.fonts;
+    const auto &theme = shared_.theme;
+    const float in = shared_.settings.reduced_motion
+                         ? 1.0f
+                         : tween::cubic_out(tween::clamp01(community_age_ / kCommunityArrive));
+    list.push_opacity(in);
+    list.rounded_rect({0, 0, kWidth, kHeight}, 0, tone::night.with_alpha(0.88f));
+    // It rises a little as it comes, about the middle of the screen.
+    list.push_transform(1.0f, kWidth * 0.5f, kHeight * 0.5f, 0.0f, 18.0f * (1.0f - in));
+    draw_glass(canvas, theme, kCommunityCard, 28);
+    const float left = kCommunityCard.x + 80.0f;
+    const float wide = kCommunityCard.w - 160.0f;
+    // A long translation is made smaller to keep to one line.
+    const auto line = [&](const ui::FontRef &face, const char *words, float x, float y, float size,
+                          float room, Color color)
+    {
+        const float width = face.measure(words, size);
+        ui::text(list, face, words, x, y, width > room ? size * room / width : size, color);
+    };
+    line(fonts.display, tr("Join the community"), left, 255, 54, wide, theme.text);
+    line(fonts.regular, tr("Get help, hear about new releases and meet other viewers on Discord."),
+         left, 305, 26, wide, theme.text_muted);
+    draw_qr(list, community_qr_, community_qr_size_, left, 350.0f, 380.0f);
+    const float x = 825.0f;
+    const float room = kCommunityCard.x + kCommunityCard.w - 80.0f - x;
+    line(fonts.semibold, tr("Our server on Discord"), x, 390, 30, room, theme.text);
+    line(fonts.display, kCommunityName, x, 482, 78, room, theme.text);
+    line(fonts.semibold, kCommunityLink, x, 548, 34, room, tone::accent);
+    ui::paragraph(list, fonts.regular, tr("Scan the code with your phone, or open the address."), x,
+                  630, 26, room, 36, theme.text_muted, 2);
+    line(fonts.regular, tr("You can find it again on the About tab."), left, 800, 26, wide,
+         theme.text_muted);
+    // Any button closes it; Cross is the one it names.
+    const ui::Hint close[] = {{ui::Button::cross, tr("Close")}};
+    ui::HintLayout layout;
+    layout.size = 34.0f;
+    layout.text_size = 24.0f;
+    layout.font = &fonts.semibold;
+    layout.cy = 842.0f;
+    draw_hint_row(list, fonts, close, 1, 1580, 1200, layout, true);
+    list.pop_transform();
+    list.pop_opacity();
 }
 
 void App::show_tab(int index, bool glide)
@@ -982,11 +1042,28 @@ void App::play_intro()
     intro_ = shared_.settings.reduced_motion ? -1.0f : 0.0f;
 }
 
+void App::offer_community()
+{
+    community_due_ = !shared_.settings.community_seen && !community_open_;
+    community_wait_ = 0.0f;
+}
+
+void App::close_community(ui::Feedback &feedback)
+{
+    // For good: saved with the settings. Should the file not take it now, the card comes back at
+    // a later start, and nothing else changes.
+    community_open_ = false;
+    shared_.settings.community_seen = true;
+    settings_changed_ = true;
+    feedback.play(audio::Cue::back);
+    diag::event("community card closed");
+}
+
 bool App::accepts_remote_search() const
 {
     return !shared_.model.pin_prompt() && !storage_busy_ && !storage_open() &&
            (browsing() || tabs_.active() == kHome) && !update_.is_open() && !failure_.is_open() &&
-           !library_sheet_.is_open() && !guide_sheet_.is_open();
+           !library_sheet_.is_open() && !guide_sheet_.is_open() && !community_open_;
 }
 
 bool App::remote_search(const char *query)
@@ -1131,6 +1208,27 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
         open_failure(feedback);
     }
 
+    // The community, once: when the opening is over and the menu has been free a moment.
+    if (community_due_)
+    {
+        const bool free = intro_ < 0.0f && !sleeping_ && model.failure() == nullptr &&
+                          !update_.is_open() && !failure_.is_open() && !search_.is_open() &&
+                          !library_sheet_.is_open() && !guide_sheet_.is_open() &&
+                          !multiview_.is_open() && !pairing_open_ && !storage_open() &&
+                          !model.pin_prompt() && !model.plex_signing_in();
+        community_wait_ = free ? community_wait_ + dt : 0.0f;
+        if (community_wait_ >= kCommunityAfter)
+        {
+            community_due_ = false;
+            community_open_ = true;
+            community_age_ = 0.0f;
+            feedback.play(audio::Cue::select);
+            diag::event("community card shown");
+        }
+    }
+    if (community_open_)
+        community_age_ += dt;
+
     // ---- input goes to whatever is on top ----
     if (input.pressed != 0 || input.nav != Direction::none)
         model.resume_last(false);
@@ -1192,6 +1290,12 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
     else if (update_.is_open())
     {
         update_.handle(input, feedback);
+    }
+    else if (community_open_)
+    {
+        // Any button closes it.
+        if (input.pressed != 0)
+            close_community(feedback);
     }
     else if (failure_.is_open())
     {
@@ -1292,10 +1396,11 @@ void App::step(const InputFrame &physical, float dt, ui::Feedback &feedback)
     search_focus_.target = search_focused_ ? 1.0f : 0.0f;
     search_focus_.update(dt, 18.0f);
     browse_.update(dt);
-    const bool preview_allowed =
-        !sleeping_ && !multiview_.active() && browsing() && shared_.settings.live_preview &&
-        intro_ < 0 && !update_.is_open() && !failure_.is_open() && !search_.is_open() &&
-        !library_sheet_.is_open() && !guide_sheet_.is_open() && !pairing_open_ && !storage_open();
+    const bool preview_allowed = !sleeping_ && !multiview_.active() && browsing() &&
+                                 shared_.settings.live_preview && intro_ < 0 &&
+                                 !update_.is_open() && !failure_.is_open() && !search_.is_open() &&
+                                 !library_sheet_.is_open() && !guide_sheet_.is_open() &&
+                                 !pairing_open_ && !storage_open() && !community_open_;
     model.block_source_check(preview_allowed || multiview_.active() || share_sheet_.is_open());
     const auto focused = preview_allowed ? browse_.focused() : std::nullopt;
     auto preview_request = focused ? model.preview_request(focused->id) : std::nullopt;
@@ -1564,6 +1669,27 @@ void App::draw_about(ui::Canvas &canvas) const
              "the whole PS5 homebrew community, and to every developer whose tools and libraries "
              "make Physalis possible."),
           theme.text, 3);
+    // Where viewers meet (tv/community.hpp): a QR code that opens the server, and beside it its
+    // name, its address and what it is for. It keeps clear of the line at the foot.
+    rule();
+    kicker(tr("JOIN THE COMMUNITY"));
+    {
+        const float code = 5.0f * static_cast<float>(community_qr_size_ + 8); // 5 a module
+        const float top =
+            std::min(y - 18.0f, kCreditsPanel.y + kCreditsPanel.h - 36.0f - 34.0f - code);
+        draw_qr(list, community_qr_, community_qr_size_, x, top, code);
+        const float left = x + code + 32.0f;
+        const float room = right - left;
+        paint.heading(kCommunityName, left - 2.0f, top + 30.0f, 36.0f);
+        ui::text(list, fonts.semibold, kCommunityLink, left, top + 64.0f, 22.0f, tone::accent);
+        const float at = ui::paragraph(
+            list, fonts.regular,
+            tr("Get help, hear about new releases and meet other viewers on Discord."), left,
+            top + 98.0f, 20.0f, room, 27.0f, theme.text_muted, 2);
+        ui::paragraph(list, fonts.regular,
+                      tr("Scan the code with your phone, or open the address."), left, at, 20.0f,
+                      room, 27.0f, theme.text_muted, 2);
+    }
     ui::text(list, fonts.regular, tr("Menu sound effects made with ElevenLabs."), x,
              kCreditsPanel.y + kCreditsPanel.h - 36.0f, 19.0f, theme.text_muted);
     list.pop_opacity();
@@ -1822,6 +1948,8 @@ void App::draw(Frame &frame, bool themed) const
     guide_sheet_.draw(over);
     multiview_.draw_picture_in_picture(over);
     failure_.draw(over);
+    if (community_open_)
+        draw_community(over);
     update_.draw(over);
     storage_dialog_.draw(over);
     share_sheet_.draw(over);

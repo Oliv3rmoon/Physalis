@@ -492,6 +492,10 @@ bool run_menu(ptv::Model &model, ptv::Settings *settings, const LastPlayback &la
             [](std::uint32_t texture) { glDeleteTextures(1, &texture); });
         if (g_menu_sessions == 1)
             app.play_intro();
+        // The community, once: until the viewer has closed its card (tv/community.hpp). A
+        // scripted run (test title) presses its own buttons, and is not shown it.
+        if (!script.active())
+            app.offer_community();
         InputTracker tracker;
         // The TV remote's own: its OK always confirms, whatever Cross and Circle do.
         InputTracker tv_tracker;
@@ -648,6 +652,9 @@ bool run_menu(ptv::Model &model, ptv::Settings *settings, const LastPlayback &la
                     app.set_audio_normalization(settings->audio_normalization);
                     app.set_audio_surround(settings->audio_surround);
                     app.set_stats_line(settings->stats_line);
+                    // A card closed stays closed while the app runs; it is saved with the
+                    // settings the next time they are.
+                    settings->community_seen = app.settings().community_seen;
                     app.remote_notice("Could not save settings. Try again.");
                 }
                 else
