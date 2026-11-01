@@ -46,7 +46,12 @@ typedef enum iptv_stream_video_codec {
     IPTV_STREAM_VIDEO_UNKNOWN = 0,
     IPTV_STREAM_VIDEO_H264 = 1,
     IPTV_STREAM_VIDEO_HEVC = 2,
-    IPTV_STREAM_VIDEO_VP9 = 3
+    IPTV_STREAM_VIDEO_VP9 = 3,
+    /* MPEG-1 or MPEG-2 video (transport stream types 0x01, 0x02), which the console's decoder
+     * does not have: decoded in software. video_profile and video_level are the sequence
+     * extension's profile_and_level_indication, high and low four bits; both 0 for MPEG-1,
+     * which has no extension. */
+    IPTV_STREAM_VIDEO_MPEG2 = 4
 } iptv_stream_video_codec_t;
 
 typedef enum iptv_stream_chroma_format {
@@ -78,6 +83,13 @@ typedef struct iptv_stream_format {
     uint32_t video_chroma_format;
     uint32_t audio_sample_rate;
     uint32_t audio_channels;
+    /* MPEG-1/2 only, from the sequence header and extension; zero for the other codecs. The
+     * picture's display aspect ratio as num:den (4:3, 16:9, 221:100), 0:0 when the stream
+     * gives square samples; and video_scan 1 for a progressive sequence, 2 for one that may
+     * be interlaced. Neither asks for a new decoder when it changes. */
+    uint32_t display_aspect_num;
+    uint32_t display_aspect_den;
+    uint32_t video_scan;
 } iptv_stream_format_t;
 
 typedef struct iptv_stream_config {

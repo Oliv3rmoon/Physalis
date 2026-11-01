@@ -396,6 +396,7 @@ void SaveReceipt(const char *channel_name, std::uint64_t duration_ms, int result
         "direct_native_error=0x%08x\n"
         "codec=%u\nprofile=%u\nlevel=%u\n"
         "coded=%ux%u\nvisible=%ux%u\nbit_depth=%u\nchroma=%u\n"
+        "display_aspect=%u:%u\nvideo_scan=%u\n"
         "video_access_units=%llu\naudio_frames=%llu\n"
         "native_state=%d\nnative_result=%d\nnative_cleanup=%d\n"
         "decoder_surface_pitch=%u\ndecoder_surface_height=%u\n"
@@ -453,7 +454,8 @@ void SaveReceipt(const char *channel_name, std::uint64_t duration_ms, int result
         stream.format.video_profile, stream.format.video_level, stream.format.coded_width,
         stream.format.coded_height, stream.format.visible_width, stream.format.visible_height,
         stream.format.video_bit_depth, stream.format.video_chroma_format,
-        static_cast<unsigned long long>(stream.video_access_units),
+        stream.format.display_aspect_num, stream.format.display_aspect_den,
+        stream.format.video_scan, static_cast<unsigned long long>(stream.video_access_units),
         static_cast<unsigned long long>(stream.audio_frames), static_cast<int>(native.state),
         native.last_result, native.cleanup_result, native.output_pitch,
         native.output_surface_height, native_telemetry_available,
@@ -839,6 +841,11 @@ int AdapterOpen(void *context, const iptv_stream_format_t *format)
     else if (format->video_codec == IPTV_STREAM_VIDEO_VP9)
     {
         config.codec = IPTV_NATIVE_CODEC_VP9_PROFILE0;
+    }
+    else if (format->video_codec == IPTV_STREAM_VIDEO_MPEG2)
+    {
+        // Decoded in software. MPEG-1 has no sequence extension, so no profile.
+        config.codec = format->video_profile ? IPTV_NATIVE_CODEC_MPEG2 : IPTV_NATIVE_CODEC_MPEG1;
     }
     else
     {

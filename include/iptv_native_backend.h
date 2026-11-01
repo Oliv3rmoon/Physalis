@@ -51,7 +51,12 @@ extern "C"
     {
         IPTV_NATIVE_CODEC_H264 = 1,
         IPTV_NATIVE_CODEC_HEVC = 2,
-        IPTV_NATIVE_CODEC_VP9_PROFILE0 = 3
+        IPTV_NATIVE_CODEC_VP9_PROFILE0 = 3,
+        /* No decoder of the console's: FFmpeg decodes these on the CPU into the same NV12
+         * surfaces, presented, deinterlaced and timed like the others. profile and level are
+         * the sequence extension's (0 for MPEG-1). */
+        IPTV_NATIVE_CODEC_MPEG2 = 4,
+        IPTV_NATIVE_CODEC_MPEG1 = 5
     } iptv_native_codec_t;
 
     typedef enum iptv_native_state

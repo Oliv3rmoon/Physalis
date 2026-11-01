@@ -241,8 +241,10 @@ void iptv_native_agc_set_picture_mode(unsigned mode)
     atomic_store(&picture_mode, mode <= IPTV_PICTURE_ZOOM_150 ? mode : IPTV_PICTURE_FIT);
 }
 
+/* shape: the source's display aspect ratio, or 0 when it is its width over its height
+ * (square samples). */
 static void picture_size(unsigned width, unsigned height, unsigned output_width,
-                         unsigned output_height, unsigned mode, float *w, float *h)
+                         unsigned output_height, unsigned mode, double shape, float *w, float *h)
 {
     *w = (float)output_width;
     *h = (float)output_height;
@@ -250,6 +252,7 @@ static void picture_size(unsigned width, unsigned height, unsigned output_width,
         return;
     const double aspect = mode == IPTV_PICTURE_4_3    ? 4.0 / 3.0
                           : mode == IPTV_PICTURE_16_9 ? 16.0 / 9.0
+                          : shape > 0                 ? shape
                                                       : (double)width / height;
     if ((aspect > (double)output_width / output_height) != (mode == IPTV_PICTURE_FILL))
         *h = (float)(output_width / aspect);
@@ -691,6 +694,8 @@ static void draw_video_overlay(void *source, size_t source_bytes, uint32_t pitch
         const uint32_t height = 7u * scale + 12u;
         const char *codec = overlay->codec == 1u   ? "H264"
                             : overlay->codec == 2u ? (component_bytes == 2u ? "HEVC10" : "HEVC")
+                            : overlay->codec == 4u ? "MPEG2"
+                            : overlay->codec == 5u ? "MPEG1"
                                                    : "VP9";
         int bytes;
         uint32_t width;
@@ -870,7 +875,7 @@ static int render_frame(int video, int buffer_index, void *target, uint8_t *memo
                         void *vertex_shader, void *pixel_shader, const void *source,
                         size_t source_bytes, uint32_t pitch, uint32_t surface_height,
                         uint32_t visible_width, uint32_t visible_height, uint32_t output_width,
-                        uint32_t output_height, int64_t render_marker, unsigned mode,
+                        uint32_t output_height, int64_t render_marker, unsigned mode, double shape,
                         int with_screen)
 {
     static const uint16_t target_offsets[16] = {0x318, 0x31b, 0x31c, 0x31d, 0x31e, 0x31f,
@@ -942,8 +947,8 @@ static int render_frame(int video, int buffer_index, void *target, uint8_t *memo
         cx[cx_count++] = (agc_register_t){(register_offset), 0, (register_value)};                 \
     } while (0)
     float picture_width, picture_height;
-    picture_size(visible_width, visible_height, output_width, output_height, mode, &picture_width,
-                 &picture_height);
+    picture_size(visible_width, visible_height, output_width, output_height, mode, shape,
+                 &picture_width, &picture_height);
     /* A picture that does not fill the screen leaves bars, painted black on every frame by the
      * GPU before the picture (see below). Clearing them from the CPU is not enough: the GPU can
      * still write back what it drew there in earlier frames. */
@@ -1650,6 +1655,14 @@ static int32_t prepare_overlay_surface(size_t bytes)
     return result != 0 ? result : presenter.overlay_surface ? 0 : -12;
 }
 
+static double overlay_shape(const iptv_native_video_overlay_t *overlay)
+{
+    if (!overlay || !overlay->aspect_num || !overlay->aspect_den)
+        return 0;
+    const double shape = (double)overlay->aspect_num / overlay->aspect_den;
+    return shape >= 0.5 && shape <= 4.0 ? shape : 0;
+}
+
 static int32_t present_nv12(const void *source, size_t source_bytes, uint32_t pitch,
                             uint32_t surface_height, uint32_t visible_width,
                             uint32_t visible_height, const iptv_native_video_overlay_t *overlay,
@@ -1800,7 +1813,8 @@ static int32_t present_nv12(const void *source, size_t source_bytes, uint32_t pi
                           presenter.vertex_shader, presenter.pixel_shader, source, source_bytes,
                           pitch, surface_height, visible_width, visible_height,
                           presenter.output_width, presenter.output_height, render_marker,
-                          overlay ? atomic_load(&picture_mode) : IPTV_PICTURE_STRETCH, with_screen);
+                          overlay ? atomic_load(&picture_mode) : IPTV_PICTURE_STRETCH,
+                          overlay_shape(overlay), with_screen);
     if (result != 0)
         return result;
     presenter.pending_marker = render_marker;
@@ -2015,24 +2029,40 @@ int main(void)
     assert(iptv_native_agc_present_shutdown() == 0);
     assert(!presenter.ready && presenter.video == -1 && test_video_closes == 1);
     float w, h;
-    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_FIT, &w, &h);
+    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_FIT, 0, &w, &h);
     assert(w == 1440 && h == 1080);
-    picture_size(1920, 800, 1920, 1080, IPTV_PICTURE_FIT, &w, &h);
+    picture_size(1920, 800, 1920, 1080, IPTV_PICTURE_FIT, 0, &w, &h);
     assert(w == 1920 && h == 800);
-    picture_size(720, 576, 3840, 2160, IPTV_PICTURE_16_9, &w, &h);
+    picture_size(720, 576, 3840, 2160, IPTV_PICTURE_16_9, 0, &w, &h);
     assert(w == 3840 && h == 2160);
-    picture_size(720, 576, 1920, 1080, IPTV_PICTURE_4_3, &w, &h);
+    picture_size(720, 576, 1920, 1080, IPTV_PICTURE_4_3, 0, &w, &h);
     assert(w == 1440 && h == 1080);
-    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_STRETCH, &w, &h);
+    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_STRETCH, 0, &w, &h);
     assert(w == 1920 && h == 1080);
-    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_FILL, &w, &h);
+    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_FILL, 0, &w, &h);
     assert(w == 1920 && h == 1440);
-    picture_size(1920, 800, 1920, 1080, IPTV_PICTURE_FILL, &w, &h);
+    picture_size(1920, 800, 1920, 1080, IPTV_PICTURE_FILL, 0, &w, &h);
     assert(w == 2592 && h == 1080);
-    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_ZOOM_125, &w, &h);
+    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_ZOOM_125, 0, &w, &h);
     assert(w == 1800 && h == 1350);
-    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_ZOOM_150, &w, &h);
+    picture_size(640, 480, 1920, 1080, IPTV_PICTURE_ZOOM_150, 0, &w, &h);
     assert(w == 2160 && h == 1620);
+    /* MPEG-2 SD: 720x576 samples shown as 4:3 or 16:9, as its sequence header says. */
+    picture_size(720, 576, 1920, 1080, IPTV_PICTURE_FIT, 0, &w, &h);
+    assert(w == 1350 && h == 1080);
+    picture_size(720, 576, 1920, 1080, IPTV_PICTURE_FIT, 4.0 / 3.0, &w, &h);
+    assert(w == 1440 && h == 1080);
+    picture_size(720, 576, 1920, 1080, IPTV_PICTURE_FIT, 16.0 / 9.0, &w, &h);
+    assert(w == 1920 && h == 1080);
+    picture_size(720, 576, 3840, 2160, IPTV_PICTURE_FILL, 4.0 / 3.0, &w, &h);
+    assert(w == 3840 && h == 2880);
+    picture_size(720, 576, 1920, 1080, IPTV_PICTURE_4_3, 16.0 / 9.0, &w, &h);
+    assert(w == 1440 && h == 1080); /* the viewer's choice comes first */
+    picture_size(720, 576, 1920, 1080, IPTV_PICTURE_STRETCH, 4.0 / 3.0, &w, &h);
+    assert(w == 1920 && h == 1080);
+    const iptv_native_video_overlay_t sd = {.aspect_num = 16, .aspect_den = 9};
+    const iptv_native_video_overlay_t odd = {.aspect_num = 1, .aspect_den = 9};
+    assert(overlay_shape(&sd) == 16.0 / 9.0 && overlay_shape(&odd) == 0 && !overlay_shape(NULL));
     iptv_native_agc_set_picture_mode(99);
     assert(atomic_load(&picture_mode) == IPTV_PICTURE_FIT);
     test_output_result = -99;

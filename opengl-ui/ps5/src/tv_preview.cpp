@@ -191,7 +191,8 @@ struct Decoder
             if (cancelled(d.control))
                 return -1;
             if (f->video_codec != IPTV_STREAM_VIDEO_H264 &&
-                f->video_codec != IPTV_STREAM_VIDEO_HEVC)
+                f->video_codec != IPTV_STREAM_VIDEO_HEVC &&
+                f->video_codec != IPTV_STREAM_VIDEO_MPEG2)
             {
                 if (d.probe)
                     *d.probe = {ProbeOutcome::unsupported, 0};
@@ -200,6 +201,10 @@ struct Decoder
             iptv_native_open_config_t config{};
             config.codec = f->video_codec == IPTV_STREAM_VIDEO_H264 ? IPTV_NATIVE_CODEC_H264
                                                                     : IPTV_NATIVE_CODEC_HEVC;
+            // MPEG-1/2 is decoded in software, as when it plays (iptv_player.cpp, AdapterOpen).
+            if (f->video_codec == IPTV_STREAM_VIDEO_MPEG2)
+                config.codec =
+                    f->video_profile ? IPTV_NATIVE_CODEC_MPEG2 : IPTV_NATIVE_CODEC_MPEG1;
             config.profile = f->video_profile;
             config.level = f->video_level;
             config.coded_width = f->coded_width;

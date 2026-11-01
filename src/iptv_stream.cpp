@@ -163,6 +163,15 @@ struct impl_t
     bool video_vps;
     bool video_random_access;
     bool hevc_skip_rasl;
+    // MPEG-1/2: a sequence header waits for the sequence extension that follows it (MPEG-2),
+    // or for the next start code without one (MPEG-1), with the values it gave.
+    bool mpeg2_pending;
+    uint32_t mpeg2_width, mpeg2_height, mpeg2_aspect;
+    // Within one look through the access unit being assembled: a first field picture, whose
+    // second field belongs to the same access unit.
+    bool mpeg2_field_open;
+    // Joined at an I picture: B pictures until the next P or I refer to one never received.
+    bool mpeg2_skip_b;
     bool audio_disabled;
     bool audio_off;
     iptv_stream_audio_track_t audio_tracks[IPTV_STREAM_MAX_AUDIO_TRACKS];
@@ -799,12 +808,141 @@ static int parse_hevc_sps(iptv_stream_session_t *session, impl_t *impl, const ui
         height - static_cast<uint32_t>(crop_y), 8u + luma_depth, chroma_api(chroma));
 }
 
+// MPEG-1/2 start codes (ISO/IEC 13818-2 6.2.1): the value after 00 00 01.
+constexpr uint8_t kMpeg2Picture = 0x00u, kMpeg2LastSlice = 0xafu, kMpeg2Sequence = 0xb3u,
+                  kMpeg2Extension = 0xb5u, kMpeg2Gop = 0xb8u;
+
+// A sequence header's display aspect ratio code as num:den: MPEG-2's codes are the picture's
+// own shape (13818-2 table 6-3). MPEG-1's codes are sample shapes (11172-2 table 2-D.1), of
+// which those named for television are told apart here, 16:9 and CCIR 601 (4:3) at 625 and
+// 525 lines; the others are taken as square samples (0:0).
+static void mpeg2_display_aspect(bool mpeg1, uint32_t code, uint32_t *num, uint32_t *den)
+{
+    *num = *den = 0;
+    if (!mpeg1)
+    {
+        if (code == 2u)
+            *num = 4u, *den = 3u;
+        else if (code == 3u)
+            *num = 16u, *den = 9u;
+        else if (code == 4u)
+            *num = 221u, *den = 100u;
+        return;
+    }
+    if (code == 3u || code == 6u) // 0.7031 (16:9, 625 lines), 0.8437 (16:9, 525 lines)
+        *num = 16u, *den = 9u;
+    else if (code == 8u || code == 12u) // 0.9375 (CCIR 601, 625 lines), 1.1250 (525 lines)
+        *num = 4u, *den = 3u;
+}
+
+// Settles the waiting sequence header: with its sequence extension (MPEG-2, `extension` its
+// bytes after the start code) or without one (MPEG-1).
+static int settle_mpeg2_sequence(iptv_stream_session_t *session, impl_t *impl,
+                                 const uint8_t *extension, size_t bytes)
+{
+    impl->mpeg2_pending = false;
+    uint32_t width = impl->mpeg2_width, height = impl->mpeg2_height;
+    uint32_t profile = 0, level = 0, progressive = 1, chroma = 1;
+    if (extension)
+    {
+        bit_reader_t bits{extension, bytes * 8u, 0};
+        uint32_t id = 0, indication = 0, horizontal = 0, vertical = 0;
+        if (!read_bits(&bits, 4, &id) || id != 1u || !read_bits(&bits, 8, &indication) ||
+            !read_bits(&bits, 1, &progressive) || !read_bits(&bits, 2, &chroma) ||
+            !read_bits(&bits, 2, &horizontal) || !read_bits(&bits, 2, &vertical))
+            return fail(session, IPTV_STREAM_MALFORMED_TS, "invalid MPEG-2 sequence extension");
+        profile = indication >> 4;
+        level = indication & 0x0fu;
+        width |= horizontal << 12;
+        height |= vertical << 12;
+    }
+    if (chroma != 1u)
+        return fail(session, IPTV_STREAM_UNSUPPORTED_FORMAT, "MPEG-2 video must be 4:2:0");
+    if (!width || !height || (width & 1u) || (height & 1u))
+        return fail(session, IPTV_STREAM_UNSUPPORTED_FORMAT,
+                    "MPEG-2 picture size is not supported");
+    if (width > 1920u || height > 1088u)
+        return fail(session, IPTV_STREAM_UNSUPPORTED_FORMAT,
+                    "MPEG-2 video above 1920x1088 is not supported");
+    // Macroblocks are 16 lines; a sequence that may be interlaced codes frames in pairs of
+    // field macroblock rows (13818-2 6.3.3).
+    const uint32_t coded_width = (width + 15u) & ~15u;
+    const uint32_t coded_height = progressive ? (height + 15u) & ~15u : (height + 31u) & ~31u;
+    mpeg2_display_aspect(!extension, impl->mpeg2_aspect, &impl->format.display_aspect_num,
+                         &impl->format.display_aspect_den);
+    impl->format.video_scan = progressive ? 1u : 2u;
+    return accept_video_format(session, impl, profile, level, coded_width, coded_height, width,
+                               height, 8u, IPTV_STREAM_CHROMA_420);
+}
+
+static int parse_mpeg2_sequence(iptv_stream_session_t *session, impl_t *impl, const uint8_t *unit,
+                                size_t bytes)
+{
+    // horizontal_size_value 12, vertical_size_value 12, aspect_ratio_information 4,
+    // frame_rate_code 4; the rest (rates, buffer, matrices) is the decoder's.
+    if (bytes < 1u + 7u)
+        return fail(session, IPTV_STREAM_MALFORMED_TS, "truncated MPEG-2 sequence header");
+    const uint8_t *header = unit + 1;
+    impl->mpeg2_width = static_cast<uint32_t>(header[0]) << 4 | header[1] >> 4;
+    impl->mpeg2_height = static_cast<uint32_t>(header[1] & 0x0fu) << 8 | header[2];
+    impl->mpeg2_aspect = header[3] >> 4;
+    const uint32_t rate = header[3] & 0x0fu;
+    if (!impl->mpeg2_aspect || !rate || rate > 8u)
+        return fail(session, IPTV_STREAM_MALFORMED_TS, "invalid MPEG-2 sequence header");
+    impl->mpeg2_pending = true;
+    return IPTV_STREAM_OK;
+}
+
+static int inspect_mpeg2_unit(iptv_stream_session_t *session, impl_t *impl, const uint8_t *unit,
+                              size_t bytes, bool *vcl, bool *first, bool *prefix)
+{
+    if (!bytes)
+        return fail(session, IPTV_STREAM_MALFORMED_TS, "empty MPEG-2 start code");
+    const uint8_t code = unit[0];
+    const bool extension = code == kMpeg2Extension && bytes >= 2u;
+    const unsigned extension_id = extension ? unit[1] >> 4 : 0u;
+    if (impl->mpeg2_pending)
+    {
+        // The sequence extension follows its header at once in MPEG-2; anything else means
+        // there is none, as in MPEG-1.
+        if (extension && extension_id == 1u)
+            return settle_mpeg2_sequence(session, impl, unit + 1, bytes - 1u);
+        const int settled = settle_mpeg2_sequence(session, impl, nullptr, 0);
+        if (settled != IPTV_STREAM_OK)
+            return settled;
+    }
+    if (code == kMpeg2Sequence)
+    {
+        *prefix = true;
+        return parse_mpeg2_sequence(session, impl, unit, bytes);
+    }
+    if (code == kMpeg2Gop)
+        *prefix = true;
+    else if (code == kMpeg2Picture)
+    {
+        // A picture starts an access unit, unless it is the second field of a pair.
+        *vcl = true;
+        *first = !impl->mpeg2_field_open;
+    }
+    else if (code <= kMpeg2LastSlice)
+        *vcl = true;
+    else if (extension && extension_id == 8u && bytes >= 4u)
+    {
+        // Picture coding extension: picture_structure 1 or 2 is one field of a pair.
+        const unsigned structure = unit[3] & 3u;
+        impl->mpeg2_field_open = (structure == 1u || structure == 2u) && !impl->mpeg2_field_open;
+    }
+    return IPTV_STREAM_OK;
+}
+
 static bool video_config_ready(const impl_t *impl)
 {
     if (impl->format.video_codec == IPTV_STREAM_VIDEO_H264)
         return impl->video_sps && impl->video_pps;
     if (impl->format.video_codec == IPTV_STREAM_VIDEO_HEVC)
         return impl->video_vps && impl->video_sps && impl->video_pps;
+    if (impl->format.video_codec == IPTV_STREAM_VIDEO_MPEG2)
+        return impl->video_sps;
     return false;
 }
 
@@ -947,6 +1085,18 @@ static void update_subtitle_tracks(impl_t *impl, const iptv_stream_subtitle_trac
         impl->backend.subtitle_tracks(impl->backend.context, impl->subtitle_tracks, count);
 }
 
+// The video a transport stream type carries, among those the player decodes.
+static uint32_t video_codec_for(uint32_t stream_type)
+{
+    if (stream_type == 0x1bu)
+        return IPTV_STREAM_VIDEO_H264;
+    if (stream_type == 0x24u)
+        return IPTV_STREAM_VIDEO_HEVC;
+    if (stream_type == 0x01u || stream_type == 0x02u)
+        return IPTV_STREAM_VIDEO_MPEG2;
+    return IPTV_STREAM_VIDEO_UNKNOWN;
+}
+
 static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const uint8_t *section,
                              size_t bytes, bool programme_boundary = true)
 {
@@ -1078,11 +1228,11 @@ static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const
         }
         if (type == 0x82u && !says_dts)
             audio_type = 0; // not sound: listed with the other streams below
-        if (!next.video_pid && (type == 0x1bu || type == 0x24u))
+        if (!next.video_pid && video_codec_for(type) != IPTV_STREAM_VIDEO_UNKNOWN)
         {
             next.video_pid = pid;
             next.video_stream_type = type;
-            next.video_codec = type == 0x1bu ? IPTV_STREAM_VIDEO_H264 : IPTV_STREAM_VIDEO_HEVC;
+            next.video_codec = video_codec_for(type);
         }
         else if (audio_type == 0x0fu || audio_type == 0x03u || audio_type == 0x04u ||
                  iptv_audio_software_type(audio_type))
@@ -1104,8 +1254,8 @@ static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const
                 }
             }
         }
-        else if (!first_other_stream_type && type != 0x1bu && type != 0x24u && type != 0x0fu &&
-                 type != 0x03u && type != 0x04u)
+        else if (!first_other_stream_type && type != 0x1bu && type != 0x24u && type != 0x01u &&
+                 type != 0x02u && type != 0x0fu && type != 0x03u && type != 0x04u)
             first_other_stream_type = type;
         at += info;
     }
@@ -1128,7 +1278,7 @@ static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const
     if (at != end || !next.video_pid || next.video_pid == kNullPid ||
         (next.audio_pid != 0 && (next.video_pid == next.audio_pid || next.audio_pid == kNullPid)))
         return fail(session, IPTV_STREAM_UNSUPPORTED_FORMAT,
-                    "PMT requires H.264 or HEVC video with supported transport audio");
+                    "PMT requires H.264, HEVC or MPEG-2 video with supported transport audio");
     next.video_bit_depth = 8;
     next.video_chroma_format = IPTV_STREAM_CHROMA_420;
 
@@ -1153,6 +1303,7 @@ static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const
         impl->video_sps = false;
         impl->video_pps = false;
         impl->video_vps = false;
+        impl->mpeg2_pending = false;
         impl->video_random_access = false;
         for (auto &parameter : impl->video_parameters)
             parameter = {};
@@ -1338,6 +1489,22 @@ static size_t find_start_code(const uint8_t *data, size_t bytes, size_t from, si
     return kNoOffset;
 }
 
+// MPEG-1/2 has no emulation prevention: a zero byte ahead of 00 00 01 can be the last byte of
+// a slice, which its decoder needs, not part of a start code. Its units start at the three-byte
+// prefix; H.264's and HEVC's at the four-byte one when there is one.
+static size_t find_unit(const impl_t *impl, const uint8_t *data, size_t bytes, size_t from,
+                        size_t *prefix_bytes)
+{
+    size_t start = find_start_code(data, bytes, from, prefix_bytes);
+    if (start != kNoOffset && *prefix_bytes == 4u &&
+        impl->format.video_codec == IPTV_STREAM_VIDEO_MPEG2)
+    {
+        ++start;
+        *prefix_bytes = 3u;
+    }
+    return start;
+}
+
 static bool h264_first_slice(const uint8_t *nal, size_t bytes)
 {
     // first_mb_in_slice is the first Exp-Golomb value: zero is exactly one
@@ -1389,6 +1556,8 @@ static int inspect_video_nal(iptv_stream_session_t *session, impl_t *impl, const
             impl->video_pps = true;
         return IPTV_STREAM_OK;
     }
+    if (impl->format.video_codec == IPTV_STREAM_VIDEO_MPEG2)
+        return inspect_mpeg2_unit(session, impl, nal, bytes, vcl, first, prefix);
     return fail(session, IPTV_STREAM_UNSUPPORTED_FORMAT, "video codec is not selected");
 }
 
@@ -1400,7 +1569,8 @@ static int video_access_unit_type(const impl_t *impl, size_t bytes, size_t *pict
     while (at < bytes)
     {
         size_t prefix_bytes = 0;
-        const size_t start = find_start_code(impl->video_es.data, bytes, at, &prefix_bytes);
+        // A picture's clock is its PES's: where its three-byte start code is, for MPEG-2.
+        const size_t start = find_unit(impl, impl->video_es.data, bytes, at, &prefix_bytes);
         if (start == kNoOffset || start + prefix_bytes >= bytes)
             return -1;
         const uint8_t *nal = impl->video_es.data + start + prefix_bytes;
@@ -1421,6 +1591,14 @@ static int video_access_unit_type(const impl_t *impl, size_t bytes, size_t *pict
                 *picture_offset = start;
                 return type;
             }
+        }
+        if (impl->format.video_codec == IPTV_STREAM_VIDEO_MPEG2 && nal[0] == kMpeg2Picture)
+        {
+            // temporal_reference 10 bits, then picture_coding_type 3.
+            if (start + prefix_bytes + 2u >= bytes)
+                return -1;
+            *picture_offset = start;
+            return (nal[2] >> 3) & 7u;
         }
         at = start + prefix_bytes;
     }
@@ -1483,26 +1661,45 @@ static size_t video_parameter_slot(bool hevc, const uint8_t *nal, size_t bytes)
     return (type == 33 ? 16u : 32u) + id;
 }
 
+// MPEG-1/2 keeps its sequence header (slot 0), sequence extension (1) and sequence display
+// extension (2), in their stream order, for a decoder that starts where they are absent.
+static size_t mpeg2_parameter_slot(const uint8_t *unit, size_t bytes)
+{
+    if (unit[0] == kMpeg2Sequence)
+        return 0;
+    if (unit[0] != kMpeg2Extension || bytes < 2u)
+        return kNoOffset;
+    const unsigned id = unit[1] >> 4;
+    return id == 1u || id == 2u ? id : kNoOffset;
+}
+
 static int cache_video_parameters(iptv_stream_session_t *session, impl_t *impl, size_t bytes,
                                   bool *present, uint64_t pts, const programme_t &programme)
 {
     const bool hevc = impl->format.video_codec == IPTV_STREAM_VIDEO_HEVC;
+    const bool mpeg2 = impl->format.video_codec == IPTV_STREAM_VIDEO_MPEG2;
     bool changed = false;
     for (size_t at = 0; at < bytes;)
     {
         size_t prefix = 0, next_prefix = 0;
-        const auto start = find_start_code(impl->video_es.data, bytes, at, &prefix);
+        const auto start = find_unit(impl, impl->video_es.data, bytes, at, &prefix);
         if (start == kNoOffset || start + prefix >= bytes)
             break;
-        auto next = find_start_code(impl->video_es.data, bytes, start + prefix, &next_prefix);
+        auto next = find_unit(impl, impl->video_es.data, bytes, start + prefix, &next_prefix);
         if (next == kNoOffset)
             next = bytes;
         const auto *nal = impl->video_es.data + start + prefix;
         const unsigned type = hevc ? (nal[0] >> 1) & 0x3fu : nal[0] & 0x1fu;
-        if (hevc ? type >= 32 && type <= 34 : type == 7 || type == 8)
+        const size_t size = next - start - prefix;
+        bool parameter_set = type == 7 || type == 8;
+        if (mpeg2)
+            parameter_set = mpeg2_parameter_slot(nal, size) != kNoOffset;
+        else if (hevc)
+            parameter_set = type >= 32 && type <= 34;
+        if (parameter_set)
         {
-            const size_t size = next - start - prefix;
-            const size_t slot = video_parameter_slot(hevc, nal, size);
+            const size_t slot =
+                mpeg2 ? mpeg2_parameter_slot(nal, size) : video_parameter_slot(hevc, nal, size);
             if (slot >= kVideoParameterSlots)
                 return fail(session, IPTV_STREAM_MALFORMED_TS, "invalid video parameter-set ID");
             auto &parameter = impl->video_parameters[slot];
@@ -1553,7 +1750,12 @@ static int emit_video(iptv_stream_session_t *session, impl_t *impl, size_t bytes
         return IPTV_STREAM_OK;
     }
     const bool hevc = impl->format.video_codec == IPTV_STREAM_VIDEO_HEVC;
-    const bool random_access = hevc ? picture_type >= 16 && picture_type <= 21 : picture_type == 5;
+    const bool mpeg2 = impl->format.video_codec == IPTV_STREAM_VIDEO_MPEG2;
+    bool random_access = picture_type == 5;
+    if (hevc)
+        random_access = picture_type >= 16 && picture_type <= 21;
+    else if (mpeg2)
+        random_access = picture_type == 1;
     const bool first_picture = !impl->video_random_access;
     if (!impl->video_random_access)
     {
@@ -1569,13 +1771,21 @@ static int emit_video(iptv_stream_session_t *session, impl_t *impl, size_t bytes
                 hevc_parameter_mask(impl->video_es.data, bytes);
         impl->video_random_access = true;
         impl->hevc_skip_rasl = hevc;
+        impl->mpeg2_skip_b = mpeg2;
     }
     else if (hevc && random_access)
     {
         // Later CRA pictures have prior references; BLA/IDR start a new sequence.
         impl->hevc_skip_rasl = picture_type != 21;
     }
-    if (hevc && impl->hevc_skip_rasl && (picture_type == 8 || picture_type == 9))
+    // After the I picture joined at, B pictures until the next P or I.
+    bool leading_b = false;
+    if (mpeg2 && impl->mpeg2_skip_b && !first_picture)
+    {
+        leading_b = picture_type == 3;
+        impl->mpeg2_skip_b = leading_b;
+    }
+    if ((hevc && impl->hevc_skip_rasl && (picture_type == 8 || picture_type == 9)) || leading_b)
     {
         // At a live CRA join, RASL pictures may reference pictures we never received.
         // Keep RADL and trailing pictures, and retain normal RASL at subsequent CRA.
@@ -1593,7 +1803,8 @@ static int emit_video(iptv_stream_session_t *session, impl_t *impl, size_t bytes
         const uint8_t *data = impl->video_es.data;
         size_t submitted = bytes, setup = 0;
         std::unique_ptr<uint8_t[]> replay;
-        if (first_picture)
+        // MPEG-2's sequence extensions only ever follow their header: all or nothing.
+        if (first_picture && !(mpeg2 && present[0]))
             for (size_t i = 0; i < kVideoParameterSlots; ++i)
                 if (!present[i] && impl->video_parameters[i].size)
                     setup += 4 + impl->video_parameters[i].size;
@@ -1608,7 +1819,7 @@ static int emit_video(iptv_stream_session_t *session, impl_t *impl, size_t bytes
                 return fail(session, IPTV_STREAM_BUFFER_LIMIT, "video replay allocation failed");
             // Preserve an initial access-unit delimiter ahead of its parameters.
             size_t prefix = 0, next_prefix = 0, insert = 0;
-            if (find_start_code(data, bytes, 0, &prefix) == 0 && prefix < bytes &&
+            if (!mpeg2 && find_start_code(data, bytes, 0, &prefix) == 0 && prefix < bytes &&
                 (hevc ? ((data[prefix] >> 1) & 0x3fu) == 35 : (data[prefix] & 0x1fu) == 9))
             {
                 insert = find_start_code(data, bytes, prefix, &next_prefix);
@@ -1688,13 +1899,14 @@ static int process_video(iptv_stream_session_t *session, impl_t *impl, bool flus
         bool seen_vcl = false;
         bool emitted = false;
         size_t pending_prefix = kNoOffset;
+        impl->mpeg2_field_open = false;
         size_t at = 0;
         bool need_more = false;
         while (at < impl->video_es.size)
         {
             size_t prefix_bytes = 0;
             const size_t start =
-                find_start_code(impl->video_es.data, impl->video_es.size, at, &prefix_bytes);
+                find_unit(impl, impl->video_es.data, impl->video_es.size, at, &prefix_bytes);
             if (start == kNoOffset)
                 break;
             size_t next_prefix = 0;
@@ -1703,8 +1915,8 @@ static int process_video(iptv_stream_session_t *session, impl_t *impl, bool flus
             if (impl->video_es.search_unit == start && impl->video_es.search_clean > search_from &&
                 impl->video_es.search_clean <= impl->video_es.size)
                 search_from = impl->video_es.search_clean;
-            size_t next = find_start_code(impl->video_es.data, impl->video_es.size, search_from,
-                                          &next_prefix);
+            size_t next = find_unit(impl, impl->video_es.data, impl->video_es.size, search_from,
+                                    &next_prefix);
             if (next == kNoOffset)
             {
                 // The last three bytes may be the beginning of a start code.
@@ -2772,6 +2984,7 @@ int iptv_stream_reposition_from(iptv_stream_session_t *session, const iptv_strea
         // Headerless replay must request the same reopen as an in-band change,
         // rather than silently submitting incompatible settings to the backend.
         impl->video_sps = impl->video_pps = impl->video_vps = false;
+        impl->mpeg2_pending = false;
         for (const auto &parameter : restored)
         {
             if (!parameter.size)
@@ -2784,6 +2997,17 @@ int iptv_stream_reposition_from(iptv_stream_session_t *session, const iptv_strea
                 if (parsed == IPTV_STREAM_REOPEN_REQUIRED)
                     session->telemetry.reopen_pts_us = pts_us;
                 return parsed;
+            }
+        }
+        // An MPEG-1 sequence header has no extension to settle it.
+        if (impl->mpeg2_pending)
+        {
+            const int settled = settle_mpeg2_sequence(session, impl, nullptr, 0);
+            if (settled != IPTV_STREAM_OK)
+            {
+                if (settled == IPTV_STREAM_REOPEN_REQUIRED)
+                    session->telemetry.reopen_pts_us = pts_us;
+                return settled;
             }
         }
         session->telemetry.format = impl->format;

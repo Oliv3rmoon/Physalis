@@ -1,4 +1,4 @@
-/* ProsperoTV - Field order and spatial deinterlacing for broadcast H.264.
+/* ProsperoTV - Field order and spatial deinterlacing for broadcast H.264 and MPEG-2.
  * Copyright (C) 2026 BlackBearReloaded
  * SPDX-License-Identifier: GPL-3.0-or-later */
 #pragma once
@@ -21,18 +21,25 @@ extern "C"
     } iptv_field_info_t;
     typedef struct iptv_field_parser iptv_field_parser_t;
 
-    /* Codec matches the stream API: 1 H.264, 2 HEVC. HEVC exports color only. */
+    /* Codec matches the native backend's: 1 H.264, 2 HEVC, 4 MPEG-2, 5 MPEG-1. HEVC exports
+     * color only. MPEG-1/2 access units are whole pictures (a field pair is one unit), read
+     * from their own picture coding extensions; MPEG-1 is always progressive. */
     iptv_field_parser_t *iptv_field_parser_create(uint32_t codec);
     void iptv_field_parser_destroy(iptv_field_parser_t *parser);
     iptv_field_info_t iptv_field_parse(iptv_field_parser_t *parser, const void *data, size_t bytes);
 
-    /* Bounded H.264 software fallback into caller-owned NV12. Returns 0 while
-     * buffered, 1 for a progressive picture, 2 for interlaced, or a negative error.
-     * NULL/0 drains delayed pictures. Dimensions must match the decoded picture. */
+    /* Bounded software decoder into caller-owned NV12: H.264's fallback, and the only
+     * decoder for MPEG-1/2, which the console's has not. Returns 0 while buffered, 1 for a
+     * progressive picture, 2 for interlaced, or a negative error. NULL/0 drains delayed
+     * pictures. Dimensions must match the decoded picture. */
     int iptv_field_decode(iptv_field_parser_t *parser, const void *data, size_t bytes, void *output,
                           size_t output_bytes, uint32_t pitch, uint32_t surface_height,
                           uint32_t width, uint32_t height);
     void iptv_field_decoder_reset(iptv_field_parser_t *parser);
+    /* The display aspect ratio of the last picture iptv_field_decode returned, reduced (4:3,
+     * 16:9), from its sample aspect ratio; 0:0 for square samples or none given. */
+    void iptv_field_display_aspect(const iptv_field_parser_t *parser, uint32_t *num,
+                                   uint32_t *den);
 
     /* Copy one NV12 field to a distinct surface, interpolating only between rows
      * from that field. Never blend two moments or modify decoder reference pixels.

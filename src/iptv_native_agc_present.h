@@ -30,6 +30,10 @@ extern "C"
          * decoder or 2 for software in bits 8-15, the source's channels from bit 16; 0 for
          * none. */
         uint32_t audio;
+        /* The picture's display aspect ratio when its samples are not square (MPEG-2's 4:3 or
+         * 16:9 at 720x576), for Fit, Fill and the zooms; 0:0 for its own width and height. */
+        uint32_t aspect_num;
+        uint32_t aspect_den;
     } iptv_native_video_overlay_t;
 
     /* Register only between foreground sessions; the player joins its workers

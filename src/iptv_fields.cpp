@@ -1,4 +1,5 @@
-// ProsperoTV - Use the bundled H.264 parser; reconstruct each field separately.
+// ProsperoTV - Use the bundled H.264 parser; reconstruct each field separately. MPEG-1/2
+// pictures are read from their own headers and decoded in software.
 // Copyright (C) 2026 BlackBearReloaded
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "iptv_fields.h"
@@ -11,7 +12,36 @@ extern "C"
 #include <libavcodec/avcodec.h>
 #include <libavutil/mem.h>
 #include <libavutil/mastering_display_metadata.h>
+#include <libavutil/rational.h>
 }
+
+namespace
+{
+// The native backend's codec numbers (iptv_native_backend.h).
+constexpr uint32_t kH264 = 1, kHevc = 2, kMpeg2 = 4, kMpeg1 = 5;
+
+AVCodecID codec_id(uint32_t codec)
+{
+    switch (codec)
+    {
+    case kH264:
+        return AV_CODEC_ID_H264;
+    case kHevc:
+        return AV_CODEC_ID_HEVC;
+    case kMpeg2:
+        return AV_CODEC_ID_MPEG2VIDEO;
+    case kMpeg1:
+        return AV_CODEC_ID_MPEG1VIDEO;
+    default:
+        return AV_CODEC_ID_NONE;
+    }
+}
+
+bool mpeg(AVCodecID id)
+{
+    return id == AV_CODEC_ID_MPEG2VIDEO || id == AV_CODEC_ID_MPEG1VIDEO;
+}
+} // namespace
 
 struct iptv_field_parser
 {
@@ -23,6 +53,14 @@ struct iptv_field_parser
     bool draining = false;
     std::uint8_t *padded = nullptr;
     unsigned padded_capacity = 0;
+    // MPEG-1/2: what the last sequence header and its extensions said, for the pictures that
+    // follow without them.
+    bool progressive_sequence = true;
+    AVRational frame_rate{0, 1};
+    iptv_color_info_t color{2, 2, 2, 1, {}};
+    // The last decoded picture's sample aspect ratio and size.
+    AVRational sample_aspect{0, 1};
+    int picture_width = 0, picture_height = 0;
     ~iptv_field_parser()
     {
         av_parser_close(parser);
@@ -36,21 +74,102 @@ struct iptv_field_parser
 
 iptv_field_parser_t *iptv_field_parser_create(uint32_t codec)
 {
-    if (codec != 1 && codec != 2)
+    const AVCodecID id = codec_id(codec);
+    if (id == AV_CODEC_ID_NONE)
         return nullptr;
     auto *state = new (std::nothrow) iptv_field_parser;
-    if (state)
-        state->parser = av_parser_init(codec == 1 ? AV_CODEC_ID_H264 : AV_CODEC_ID_HEVC);
-    if (state && state->parser && state->codec)
+    // MPEG-1/2 pictures are read below, from their own headers.
+    if (state && !mpeg(id))
+        state->parser = av_parser_init(id);
+    if (state && (state->parser || mpeg(id)) && state->codec)
     {
-        state->parser->flags |= PARSER_FLAG_COMPLETE_FRAMES;
-        state->codec->codec_id = codec == 1 ? AV_CODEC_ID_H264 : AV_CODEC_ID_HEVC;
+        if (state->parser)
+            state->parser->flags |= PARSER_FLAG_COMPLETE_FRAMES;
+        state->codec->codec_id = id;
         state->codec->codec_type = AVMEDIA_TYPE_VIDEO;
         return state;
     }
     delete state;
     return nullptr;
 }
+
+namespace
+{
+// One MPEG-1/2 access unit (ISO/IEC 13818-2 6.2): its sequence header and extensions update
+// what the parser keeps; its first picture coding extension says how its picture is shown.
+// A field pair is one unit, its first field's extension coming first.
+iptv_field_info_t mpeg_fields(iptv_field_parser_t *state, const std::uint8_t *data, size_t bytes)
+{
+    static const AVRational rates[9] = {{0, 1},  {24000, 1001}, {24, 1},
+                                        {25, 1}, {30000, 1001}, {30, 1},
+                                        {50, 1}, {60000, 1001}, {60, 1}};
+    iptv_field_info_t result{};
+    bool picture = false, coded = false;
+    unsigned structure = 3, top_first = 0, progressive_frame = 1;
+    for (size_t at = 0; at + 4 <= bytes; ++at)
+    {
+        if (data[at] || data[at + 1] || data[at + 2] != 1)
+            continue;
+        const std::uint8_t code = data[at + 3];
+        const std::uint8_t *unit = data + at + 4;
+        const size_t left = bytes - at - 4;
+        if (code == 0xb3 && left >= 4)
+        {
+            state->frame_rate = rates[(unit[3] & 0x0f) < 9 ? unit[3] & 0x0f : 0];
+            state->progressive_sequence = true; // until an extension says otherwise
+        }
+        else if (code == 0x00)
+            picture = true;
+        else if (code == 0xb5 && left >= 1)
+        {
+            const unsigned id = unit[0] >> 4;
+            if (id == 1 && left >= 6)
+            {
+                state->progressive_sequence = (unit[1] & 0x08) != 0;
+                const int n = ((unit[5] >> 5) & 3) + 1, d = (unit[5] & 0x1f) + 1;
+                if (state->frame_rate.num > 0)
+                    state->frame_rate = av_mul_q(state->frame_rate, AVRational{n, d});
+            }
+            else if (id == 2 && left >= 1 && (unit[0] & 1) && left >= 4)
+            {
+                // Sequence display extension: video_format 3 bits, colour_description.
+                state->color.primaries = unit[1];
+                state->color.transfer = unit[2];
+                state->color.matrix = unit[3];
+            }
+            else if (id == 8 && left >= 5 && picture && !coded)
+            {
+                coded = true;
+                structure = unit[2] & 3;
+                top_first = unit[3] >> 7;
+                progressive_frame = unit[4] >> 7;
+            }
+        }
+    }
+    result.color = state->color;
+    if (!picture)
+        return result;
+    if (structure == 1 || structure == 2)
+    {
+        // Two field pictures in one unit: the decoder makes one frame of them.
+        result.first = structure;
+        result.count = 2;
+    }
+    else if (coded && !state->progressive_sequence && !progressive_frame)
+    {
+        result.first = top_first ? 1u : 2u;
+        result.count = 2;
+    }
+    const auto rate = state->frame_rate;
+    if (result.first && rate.num > 0 && rate.den > 0)
+    {
+        const auto duration = UINT64_C(1000000) * rate.den / (UINT64_C(2) * rate.num);
+        if (duration >= 1000 && duration <= 1000000)
+            result.duration_us = static_cast<std::uint32_t>(duration);
+    }
+    return result;
+}
+} // namespace
 void iptv_field_parser_destroy(iptv_field_parser_t *parser)
 {
     delete parser;
@@ -60,6 +179,8 @@ iptv_field_info_t iptv_field_parse(iptv_field_parser_t *state, const void *data,
     iptv_field_info_t result{};
     if (!state || !data || !bytes || bytes > 8u * 1024u * 1024u)
         return result;
+    if (mpeg(state->codec->codec_id))
+        return mpeg_fields(state, static_cast<const std::uint8_t *>(data), bytes);
     av_fast_padded_malloc(&state->padded, &state->padded_capacity, bytes);
     if (!state->padded)
         return result;
@@ -147,15 +268,16 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
                       size_t output_bytes, uint32_t pitch, uint32_t surface_height, uint32_t width,
                       uint32_t height)
 {
-    if (!state || state->codec->codec_id != AV_CODEC_ID_H264 || !output || (bytes && !data) ||
-        bytes > 8u * 1024u * 1024u || !width || !height || width > 1920 || height > 1088 ||
-        (width & 1u) || (height & 1u) || pitch < width || pitch > 2048 || (pitch & 1u) ||
-        surface_height < height || surface_height > 1088 || (surface_height & 1u) ||
-        output_bytes < static_cast<size_t>(pitch) * surface_height * 3 / 2)
+    if (!state || (state->codec->codec_id != AV_CODEC_ID_H264 && !mpeg(state->codec->codec_id)) ||
+        !output || (bytes && !data) || bytes > 8u * 1024u * 1024u || !width || !height ||
+        width > 1920 || height > 1088 || (width & 1u) || (height & 1u) || pitch < width ||
+        pitch > 2048 || (pitch & 1u) || surface_height < height || surface_height > 1088 ||
+        (surface_height & 1u) || output_bytes < static_cast<size_t>(pitch) * surface_height * 3 / 2)
         return AVERROR(EINVAL);
     if (!state->decoder)
     {
-        const auto *codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+        const bool mpeg_video = mpeg(state->codec->codec_id);
+        const auto *codec = avcodec_find_decoder(state->codec->codec_id);
         if (!codec)
             return AVERROR_DECODER_NOT_FOUND;
         state->decoder = avcodec_alloc_context3(codec);
@@ -164,9 +286,12 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
         if (!state->decoder || !state->packet || !state->frame)
             return AVERROR(ENOMEM);
         state->decoder->thread_count = 4;
-        state->decoder->thread_type = FF_THREAD_FRAME;
+        // FFmpeg's MPEG-1/2 decoder threads by slices, and conceals a damaged slice from the
+        // pictures around it: live broadcasts lose packets, and a picture goes on.
+        state->decoder->thread_type = mpeg_video ? FF_THREAD_SLICE : FF_THREAD_FRAME;
         state->decoder->max_pixels = 1920 * 1088;
-        state->decoder->err_recognition = AV_EF_EXPLODE;
+        if (!mpeg_video)
+            state->decoder->err_recognition = AV_EF_EXPLODE;
         const int result = avcodec_open2(state->decoder, codec, nullptr);
         if (result < 0)
             return result;
@@ -202,6 +327,9 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
         frame.height != static_cast<int>(height) || frame.linesize[0] < frame.width ||
         frame.linesize[1] < frame.width / 2 || frame.linesize[2] < frame.width / 2)
         return AVERROR_INVALIDDATA;
+    state->sample_aspect = frame.sample_aspect_ratio;
+    state->picture_width = frame.width;
+    state->picture_height = frame.height;
     auto *y = static_cast<std::uint8_t *>(output);
     auto *uv = y + static_cast<size_t>(pitch) * surface_height;
     std::memset(y, 16, static_cast<size_t>(pitch) * surface_height);
@@ -218,6 +346,27 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
                 frame.data[2][static_cast<size_t>(row) * frame.linesize[2] + x];
         }
     return (frame.flags & AV_FRAME_FLAG_INTERLACED) ? 2 : 1;
+}
+
+void iptv_field_display_aspect(const iptv_field_parser_t *state, uint32_t *num, uint32_t *den)
+{
+    if (!num || !den)
+        return;
+    *num = *den = 0;
+    if (!state || state->sample_aspect.num <= 0 || state->sample_aspect.den <= 0 ||
+        state->sample_aspect.num == state->sample_aspect.den || state->picture_width <= 0 ||
+        state->picture_height <= 0)
+        return;
+    int reduced_num = 0, reduced_den = 0;
+    (void)av_reduce(&reduced_num, &reduced_den,
+                    static_cast<std::int64_t>(state->sample_aspect.num) * state->picture_width,
+                    static_cast<std::int64_t>(state->sample_aspect.den) * state->picture_height,
+                    10000);
+    if (reduced_num > 0 && reduced_den > 0)
+    {
+        *num = static_cast<uint32_t>(reduced_num);
+        *den = static_cast<uint32_t>(reduced_den);
+    }
 }
 
 void iptv_field_decoder_reset(iptv_field_parser_t *state)

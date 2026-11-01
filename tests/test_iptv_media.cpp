@@ -1,8 +1,10 @@
 // ProsperoTV - Real MP4/Matroska packets through the existing stream parser.
 // Copyright (C) 2026 BlackBearReloaded
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "iptv_fields.h"
 #include "iptv_media.h"
 #include "iptv_stream.h"
+#include "iptv_timeshift.h"
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <array>
@@ -10,6 +12,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <vector>
 extern "C"
 {
@@ -1265,4 +1268,307 @@ TEST(Media, Vp9WebmRequiresConsumerAndHonorsStopAndFailure)
     stopped.vp9_output = stopped.stop_after_vp9 = true;
     EXPECT_EQ(stopped.run(&error), 1);
     EXPECT_EQ(stopped.vp9.size(), 1u);
+}
+
+// ---- MPEG-2 and MPEG-1 video, decoded in software (iptv_fields.cpp), from ffmpeg's samples
+//      (tools/make-media-fixtures.sh): broadcast SD both field orders, progressive HD, MPEG-1,
+//      a size change, HLS segments and Matroska ----
+namespace
+{
+std::vector<std::uint8_t> Fixture(const std::string &name)
+{
+    std::ifstream file("build/media-tests/fixtures/" + name, std::ios::binary);
+    return {std::istreambuf_iterator<char>(file), {}};
+}
+
+// The native backend's way with these pictures, without the console: each access unit read for
+// its fields and decoded by FFmpeg into the NV12 surface the presenter would show.
+struct SoftwarePictures
+{
+    iptv_stream_format_t format{};
+    unsigned opens = 0, units = 0, pictures = 0, interlaced = 0, audio = 0, errors = 0;
+    std::vector<iptv_field_info_t> fields;
+    std::uint32_t aspect_num = 0, aspect_den = 0;
+    bool varied = false;
+    std::unique_ptr<iptv_field_parser_t, decltype(&iptv_field_parser_destroy)> parser{
+        nullptr, iptv_field_parser_destroy};
+    std::vector<std::uint8_t> surface;
+
+    int decode(const void *data, std::size_t bytes)
+    {
+        return iptv_field_decode(parser.get(), data, bytes, surface.data(), surface.size(),
+                                 format.coded_width, format.coded_height, format.visible_width,
+                                 format.visible_height);
+    }
+    void picture(int result)
+    {
+        ++pictures;
+        interlaced += result == 2;
+        iptv_field_display_aspect(parser.get(), &aspect_num, &aspect_den);
+        // testsrc2 is anything but flat: a decoded picture has dark and light luma.
+        unsigned low = 255, high = 0;
+        for (unsigned x = 0; x < format.visible_width; ++x)
+        {
+            const unsigned luma =
+                surface[static_cast<std::size_t>(format.visible_height / 3) * format.coded_width +
+                        x];
+            low = std::min(low, luma);
+            high = std::max(high, luma);
+        }
+        varied |= high - low > 100;
+    }
+    void drain()
+    {
+        for (int result; parser && (result = decode(nullptr, 0)) > 0;)
+            picture(result);
+    }
+    iptv_stream_backend_t backend()
+    {
+        iptv_stream_backend_t b{};
+        b.context = this;
+        b.open = [](void *self, const iptv_stream_format_t *format)
+        {
+            auto &d = *static_cast<SoftwarePictures *>(self);
+            ++d.opens;
+            d.format = *format;
+            // The player's choice (AdapterOpen): MPEG-1 has no profile.
+            d.parser.reset(iptv_field_parser_create(format->video_profile ? 4 : 5));
+            d.surface.assign(
+                static_cast<std::size_t>(format->coded_width) * format->coded_height * 3 / 2, 0);
+            return d.parser ? 0 : -1;
+        };
+        b.submit_video = [](void *self, const std::uint8_t *data, std::size_t bytes, std::uint64_t)
+        {
+            auto &d = *static_cast<SoftwarePictures *>(self);
+            ++d.units;
+            d.fields.push_back(iptv_field_parse(d.parser.get(), data, bytes));
+            const int result = d.decode(data, bytes);
+            if (result < 0)
+                ++d.errors;
+            else if (result > 0)
+                d.picture(result);
+            return result < 0 ? -1 : 0;
+        };
+        b.submit_audio = [](void *self, const std::uint8_t *, std::size_t, std::uint64_t)
+        {
+            ++static_cast<SoftwarePictures *>(self)->audio;
+            return 0;
+        };
+        b.disable_audio = [](void *) { return 0; };
+        b.discontinuity = [](void *) { return 0; };
+        b.drain = [](void *) { return 0; };
+        b.close = [](void *) {};
+        return b;
+    }
+};
+
+int PushAll(iptv_stream_session_t *session, const std::vector<std::uint8_t> &bytes,
+            std::size_t from = 0)
+{
+    for (std::size_t at = from; at < bytes.size(); at += 65536)
+    {
+        const int result = iptv_stream_push(session, bytes.data() + at,
+                                            std::min<std::size_t>(65536, bytes.size() - at));
+        if (result != IPTV_STREAM_OK)
+            return result;
+    }
+    return IPTV_STREAM_OK;
+}
+
+// One playback session over transport bytes, as the player's: open, push, stop, decoded.
+void PlayTransport(const std::vector<std::uint8_t> &bytes, SoftwarePictures *pictures)
+{
+    const auto backend = pictures->backend();
+    iptv_stream_session_t session{};
+    iptv_stream_init(&session);
+    ASSERT_EQ(iptv_stream_open(&session, nullptr, &backend), IPTV_STREAM_OK);
+    ASSERT_EQ(iptv_stream_start(&session), IPTV_STREAM_OK);
+    ASSERT_EQ(PushAll(&session, bytes), IPTV_STREAM_OK) << session.telemetry.last_error;
+    ASSERT_EQ(iptv_stream_stop(&session), IPTV_STREAM_OK) << session.telemetry.last_error;
+    pictures->drain();
+    EXPECT_EQ(session.telemetry.format.video_codec, IPTV_STREAM_VIDEO_MPEG2);
+    EXPECT_EQ(iptv_stream_cleanup(&session), IPTV_STREAM_OK);
+}
+
+void ExpectBroadcastSd(const SoftwarePictures &d, unsigned first_field, std::uint32_t num,
+                       std::uint32_t den, unsigned frames)
+{
+    EXPECT_EQ(d.opens, 1u);
+    EXPECT_EQ(d.format.video_codec, IPTV_STREAM_VIDEO_MPEG2);
+    EXPECT_EQ(d.format.video_stream_type, 0x02u);
+    EXPECT_EQ(d.format.visible_width, 720u);
+    EXPECT_EQ(d.format.visible_height, 576u);
+    EXPECT_EQ(d.format.coded_width, 720u);
+    EXPECT_EQ(d.format.coded_height, 576u);
+    EXPECT_EQ(d.format.video_profile, 4u);
+    EXPECT_EQ(d.format.video_level, 8u);
+    EXPECT_EQ(d.format.video_scan, 2u);
+    EXPECT_EQ(d.format.display_aspect_num, num);
+    EXPECT_EQ(d.format.display_aspect_den, den);
+    // Every picture, decoded, each one interlaced and shown as two fields 20 ms apart.
+    EXPECT_EQ(d.errors, 0u);
+    EXPECT_EQ(d.units, frames);
+    EXPECT_EQ(d.pictures, frames);
+    EXPECT_EQ(d.interlaced, frames);
+    ASSERT_EQ(d.fields.size(), frames);
+    for (const auto &info : d.fields)
+    {
+        EXPECT_EQ(info.first, first_field);
+        EXPECT_EQ(info.count, 2u);
+        EXPECT_EQ(info.duration_us, 20000u);
+        EXPECT_EQ(info.field_picture, 0u);
+    }
+    EXPECT_EQ(d.aspect_num, num);
+    EXPECT_EQ(d.aspect_den, den);
+    EXPECT_TRUE(d.varied);
+    EXPECT_GT(d.audio, 0u);
+    EXPECT_TRUE(d.format.audio_stream_type == 0x03u || d.format.audio_stream_type == 0x04u);
+}
+} // namespace
+
+TEST(Mpeg2, BroadcastSdDecodesEveryPictureWithItsFieldOrderAndShape)
+{
+    SoftwarePictures top;
+    PlayTransport(Fixture("mpeg2-interlaced.ts"), &top);
+    ExpectBroadcastSd(top, 1, 16, 9, 50);
+    SoftwarePictures bottom;
+    PlayTransport(Fixture("mpeg2-bottom.ts"), &bottom);
+    ExpectBroadcastSd(bottom, 2, 4, 3, 25);
+}
+
+TEST(Mpeg2, ProgressiveHdAndMpeg1AreShownWhole)
+{
+    SoftwarePictures hd;
+    PlayTransport(Fixture("mpeg2-progressive.ts"), &hd);
+    EXPECT_EQ(hd.format.visible_width, 1280u);
+    EXPECT_EQ(hd.format.visible_height, 720u);
+    EXPECT_EQ(hd.format.coded_height, 720u);
+    EXPECT_EQ(hd.format.video_scan, 1u);
+    EXPECT_EQ(hd.format.display_aspect_num, 16u);
+    EXPECT_EQ(hd.format.display_aspect_den, 9u);
+    EXPECT_EQ(hd.errors, 0u);
+    EXPECT_EQ(hd.pictures, 50u);
+    EXPECT_EQ(hd.interlaced, 0u);
+    for (const auto &info : hd.fields)
+        EXPECT_EQ(info.first, 0u);
+    // Square samples: shown at the picture's own shape.
+    EXPECT_EQ(hd.aspect_num, 0u);
+    EXPECT_TRUE(hd.varied);
+
+    SoftwarePictures mpeg1;
+    PlayTransport(Fixture("mpeg1.ts"), &mpeg1);
+    // FFmpeg's muxer marks MPEG-1 as stream type 0x02 too: the missing sequence extension
+    // is what says MPEG-1.
+    EXPECT_EQ(mpeg1.format.video_stream_type, 0x02u);
+    EXPECT_EQ(mpeg1.format.video_profile, 0u);
+    EXPECT_EQ(mpeg1.format.video_level, 0u);
+    EXPECT_EQ(mpeg1.format.visible_width, 352u);
+    EXPECT_EQ(mpeg1.format.visible_height, 288u);
+    EXPECT_EQ(mpeg1.format.video_scan, 1u);
+    EXPECT_EQ(mpeg1.errors, 0u);
+    EXPECT_EQ(mpeg1.pictures, 25u);
+    EXPECT_EQ(mpeg1.interlaced, 0u);
+    EXPECT_TRUE(mpeg1.varied);
+}
+
+TEST(Mpeg2, ASizeChangeOpensAFreshDecoderAtTheNewHeaderFromTheLiveHistory)
+{
+    // As a live channel plays: its history parses ahead, playback asks for a fresh decoder
+    // when the sequence header changes, and the player starts one at that header's clock.
+    const auto bytes = Fixture("mpeg2-size-change.ts");
+    ASSERT_FALSE(bytes.empty());
+    iptv::Timeshift history(8u << 20);
+    ASSERT_TRUE(history.enable_replay());
+    ASSERT_TRUE(history.append(bytes.data(), bytes.size()));
+    ASSERT_EQ(history.range().replay_result, IPTV_STREAM_OK)
+        << history.replay_telemetry().last_error;
+
+    SoftwarePictures before;
+    const auto first = before.backend();
+    iptv_stream_session_t session{};
+    iptv_stream_init(&session);
+    ASSERT_EQ(iptv_stream_open(&session, nullptr, &first), IPTV_STREAM_OK);
+    ASSERT_EQ(iptv_stream_start(&session), IPTV_STREAM_OK);
+    ASSERT_EQ(PushAll(&session, bytes), IPTV_STREAM_REOPEN_REQUIRED);
+    const auto reopen = session.telemetry.reopen_pts_us;
+    (void)iptv_stream_cleanup(&session);
+    before.drain();
+    EXPECT_EQ(before.format.visible_width, 720u);
+    EXPECT_EQ(before.errors, 0u);
+    EXPECT_GE(before.pictures, 48u);
+
+    const auto position = history.seek_next(reopen);
+    ASSERT_TRUE(position);
+    EXPECT_EQ(position->pts_us, reopen);
+    SoftwarePictures after;
+    const auto second = after.backend();
+    iptv_stream_init(&session);
+    ASSERT_EQ(iptv_stream_open(&session, nullptr, &second), IPTV_STREAM_OK);
+    ASSERT_EQ(iptv_stream_start(&session), IPTV_STREAM_OK);
+    ASSERT_EQ(history.reposition(&session, *position), IPTV_STREAM_OK)
+        << session.telemetry.last_error;
+    std::vector<std::uint8_t> rest(
+        static_cast<std::size_t>(history.range().end - position->offset));
+    ASSERT_EQ(history.read(position->offset, rest.data(), rest.size()).bytes, rest.size());
+    ASSERT_EQ(PushAll(&session, rest), IPTV_STREAM_OK) << session.telemetry.last_error;
+    ASSERT_EQ(iptv_stream_stop(&session), IPTV_STREAM_OK);
+    after.drain();
+    EXPECT_EQ(after.opens, 1u);
+    EXPECT_EQ(after.format.visible_width, 1280u);
+    EXPECT_EQ(after.format.visible_height, 720u);
+    EXPECT_EQ(after.format.coded_height, 736u); // interlaced: pairs of field macroblock rows
+    EXPECT_EQ(after.errors, 0u);
+    EXPECT_EQ(after.pictures, 25u);
+    EXPECT_EQ(after.interlaced, 25u);
+    EXPECT_TRUE(after.varied);
+    EXPECT_EQ(iptv_stream_cleanup(&session), IPTV_STREAM_OK);
+}
+
+TEST(Mpeg2, HlsSegmentsPlayAsALiveChannelsDoAndThroughTheContainerReader)
+{
+    // The player's own HLS path: each segment's bytes into one playback session.
+    const auto playlist = Fixture("hls-mpeg2/master.m3u8");
+    ASSERT_FALSE(playlist.empty());
+    std::vector<std::uint8_t> segments;
+    std::string line;
+    unsigned count = 0;
+    for (const auto byte : playlist)
+    {
+        if (byte != '\n')
+        {
+            line += static_cast<char>(byte);
+            continue;
+        }
+        if (!line.empty() && line[0] != '#')
+        {
+            const auto segment = Fixture("hls-mpeg2/" + line);
+            ASSERT_FALSE(segment.empty()) << line;
+            segments.insert(segments.end(), segment.begin(), segment.end());
+            ++count;
+        }
+        line.clear();
+    }
+    EXPECT_GE(count, 3u);
+    SoftwarePictures live;
+    PlayTransport(segments, &live);
+    ExpectBroadcastSd(live, 1, 16, 9, 50);
+
+    // A video-on-demand HLS address goes through FFmpeg's reader and is remuxed.
+    Memory media("hls-mpeg2/master.m3u8");
+    std::string error;
+    ASSERT_EQ(media.run(&error), 0) << error;
+    SoftwarePictures remuxed;
+    PlayTransport(media.transport, &remuxed);
+    ExpectBroadcastSd(remuxed, 1, 16, 9, 50);
+}
+
+TEST(Mpeg2, MatroskaIsRemuxedForTheSameSoftwareDecoder)
+{
+    Memory media("mpeg2.mkv");
+    ASSERT_FALSE(media.bytes.empty());
+    std::string error;
+    ASSERT_EQ(media.run(&error), 0) << error;
+    SoftwarePictures pictures;
+    PlayTransport(media.transport, &pictures);
+    ExpectBroadcastSd(pictures, 1, 16, 9, 50);
 }

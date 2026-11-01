@@ -210,4 +210,32 @@ ffmpeg -hide_banner -loglevel error -y -i "$output/chapters.mp4" -map 0:v -map 0
 ffmpeg -hide_banner -loglevel error -y -i "$output/chapters.mp4" -map 0:v -an \
     -map_chapters 0 -c:v libvpx-vp9 -threads 2 -deadline good -cpu-used 5 -g 25 \
     -b:v 300k "$output/seek.webm"
+# MPEG-2 and MPEG-1 video, which the player decodes in software: broadcast SD, interlaced
+# top field first (16:9) and bottom field first (4:3), progressive 720p, MPEG-1, a programme
+# whose size changes from 720x576 to 1280x720, and the SD one as HLS segments and in
+# Matroska.
+mpeg2=(-c:v mpeg2video -threads 2 -g 12 -bf 2 -b:v 2M -c:a mp2 -b:a 128k)
+ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=720x576:rate=25 \
+    -f lavfi -i sine=frequency=440:sample_rate=48000 -t 2 "${mpeg2[@]}" \
+    -flags +ilme+ildct -vf setfield=tff -aspect 16:9 "$output/mpeg2-interlaced.ts"
+ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=720x576:rate=25 \
+    -f lavfi -i sine=frequency=440:sample_rate=48000 -t 1 "${mpeg2[@]}" \
+    -flags +ilme+ildct -vf setfield=bff -aspect 4:3 "$output/mpeg2-bottom.ts"
+ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=1280x720:rate=50 \
+    -f lavfi -i sine=frequency=440:sample_rate=48000 -t 1 "${mpeg2[@]}" \
+    -aspect 16:9 "$output/mpeg2-progressive.ts"
+ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=352x288:rate=25 \
+    -f lavfi -i sine=frequency=440:sample_rate=48000 -t 1 -c:v mpeg1video -threads 2 -g 12 \
+    -bf 2 -b:v 1M -c:a mp2 -b:a 128k "$output/mpeg1.ts"
+ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=1280x720:rate=25 \
+    -f lavfi -i sine=frequency=440:sample_rate=48000 -t 1 "${mpeg2[@]}" \
+    -flags +ilme+ildct -vf setfield=tff -aspect 16:9 "$output/mpeg2-hd.ts"
+printf "file '%s'\n" "$output/mpeg2-interlaced.ts" "$output/mpeg2-hd.ts" > "$output/mpeg2-sizes.txt"
+ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$output/mpeg2-sizes.txt" -c copy \
+    "$output/mpeg2-size-change.ts"
+mkdir -p "$output/hls-mpeg2"
+ffmpeg -hide_banner -loglevel error -y -i "$output/mpeg2-interlaced.ts" -c copy -hls_time 0.5 \
+    -hls_list_size 0 -hls_segment_type mpegts \
+    -hls_segment_filename "$output/hls-mpeg2/segment-%d.ts" "$output/hls-mpeg2/master.m3u8"
+ffmpeg -hide_banner -loglevel error -y -i "$output/mpeg2-interlaced.ts" -c copy "$output/mpeg2.mkv"
 printf '%s\n' "$stamp" > "$output/.complete"

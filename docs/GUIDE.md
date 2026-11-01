@@ -308,6 +308,7 @@ Provider requirements and validation for these features are in
 | H.264 / AVC | MPEG-TS, HLS, MP4 and Matroska; Baseline, Main, and High profiles within the configured level limits | 720p, 1080p, 1440p, 2160p |
 | HEVC | MPEG-TS, HLS, MP4 and Matroska; Main / Main10, 8-bit or 10-bit 4:2:0, SDR output | 720p, 1080p, 1440p, 2160p |
 | VP9 | Direct WebM; Profile 0, 8-bit 4:2:0 | 1080p, 1440p, 2160p |
+| MPEG-2 / MPEG-1 | MPEG-TS, HLS, MP4 and Matroska; 8-bit 4:2:0, decoded in software (the PS5's decoder has neither); interlaced pictures shown field by field, 4:3 and 16:9 as the stream says | up to 1920 × 1080 |
 
 Sources up to 1080p use a 1920×1080 presentation surface. Native 1440p video
 is scaled to the 4K output surface, while 2160p video is decoded and presented
@@ -588,7 +589,7 @@ src/main.cpp                  Earlier interface: SDL/RmlUi lifetime and renderer
 src/iptv_app.cpp              Earlier interface: screens, focus, search, and paging
 src/iptv_xtream.cpp           Xtream credentials, Player API parsing, and live URLs
 src/iptv_player.cpp           Stream selection, buffering, playback, and errors
-src/iptv_stream.cpp           MPEG-TS demux and H.264/HEVC access-unit assembly
+src/iptv_stream.cpp           MPEG-TS demux and H.264/HEVC/MPEG-2 access-unit assembly
 src/iptv_native_backend.c     Native video/audio decode and presentation backend
 src/iptv_catalog.cpp          Extended M3U catalog parser
 src/iptv_store.cpp            SQLite last-good catalog persistence
@@ -638,7 +639,8 @@ warning.
   at 50 or 60 fields per second. Spatial bob reduces vertical detail in each
   field; it does not perform motion-adaptive reconstruction. Interlaced streams
   rejected by the hardware decoder use bounded software decoding up to 1080i.
-- MPEG-TS playback supports H.264 and 8-bit/10-bit HEVC video. Main10 uses hardware
+- MPEG-TS playback supports H.264, 8-bit/10-bit HEVC and MPEG-2/MPEG-1 video; MPEG-2
+  and MPEG-1 are decoded in software, up to 1920 × 1080. Main10 uses hardware
   decoding and GPU presentation. BT.2020/PQ and HLG select HDR10 output; HLG
   converts to PQ, and rejected HDR output requests fall back to SDR tone mapping.
   Static mastering/content-light metadata is retained, but custom HDMI metadata

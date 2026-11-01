@@ -585,6 +585,7 @@ int ReadMedia(const MediaInput &input, const MediaOutput &output, std::string *e
         if (video < 0 && p->codec_type == AVMEDIA_TYPE_VIDEO &&
             !(r.demux->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC) &&
             (p->codec_id == AV_CODEC_ID_H264 || p->codec_id == AV_CODEC_ID_HEVC ||
+             p->codec_id == AV_CODEC_ID_MPEG2VIDEO || p->codec_id == AV_CODEC_ID_MPEG1VIDEO ||
              (p->codec_id == AV_CODEC_ID_VP9 && output.vp9_packet)))
             video = static_cast<int>(i);
         if (p->codec_type == AVMEDIA_TYPE_AUDIO && audio_supported(*p))
@@ -616,7 +617,7 @@ int ReadMedia(const MediaInput &input, const MediaOutput &output, std::string *e
         }
     }
     if (video < 0)
-        return fail("This video needs an H.264 or HEVC video track.");
+        return fail("This video needs an H.264, HEVC or MPEG-2 video track.");
     if (hls)
         std::stable_sort(tracks.begin(), tracks.end(),
                          [&](int a, int b)
