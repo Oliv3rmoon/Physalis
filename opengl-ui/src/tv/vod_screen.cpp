@@ -71,7 +71,7 @@ void VodScreen::enter_letters()
         (focused()->kind == Kind::category && shared_.model.category_hidden(focused()->category)))
         view.vod_focus = letter_starts_[current_letter()];
     top_ = std::clamp(view.vod_focus, 0, std::max(0, static_cast<int>(rows_.size()) - kRows));
-    page_dir_ = 0;
+    pages_.stop();
     letters_focused_ = true;
 }
 void VodScreen::enter()
@@ -419,41 +419,15 @@ void VodScreen::handle(const InputFrame &input, ui::Feedback &feedback)
         return;
     }
     const auto old = view.vod_focus;
+    // Held, Up and Down go faster the longer they are held (HeldSteps).
     if (input.nav == Direction::up)
-        --view.vod_focus;
+        view.vod_focus -= steps_.rows(input);
     if (input.nav == Direction::down)
-        ++view.vod_focus;
-    // L2 and R2 turn a page; held, they keep turning: after 0.4 s every
-    // 0.12 s, after 1.6 s every 0.07 s, then two, four and eight pages a turn
-    // (a provider's "all movies" is tens of thousands of rows).
-    {
-        const double now =
-            std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
-                .count();
-        const int pressed = input.is_pressed(Action::jump_next)   ? 1
-                            : input.is_pressed(Action::jump_prev) ? -1
-                                                                  : 0;
-        const int held = input.is_held(Action::jump_next)   ? 1
-                         : input.is_held(Action::jump_prev) ? -1
-                                                            : 0;
-        int pages = 0;
-        if (pressed != 0)
-        {
-            page_dir_ = pressed;
-            page_started_ = now;
-            page_due_ = 0.40;
-            pages = pressed;
-        }
-        else if (held == 0 || held != page_dir_)
-            page_dir_ = 0;
-        else if (now - page_started_ >= page_due_)
-        {
-            const double hold = now - page_started_;
-            page_due_ += hold >= 1.6 ? 0.07 : 0.12;
-            pages = held * (hold >= 7.0 ? 8 : hold >= 5.0 ? 4 : hold >= 3.0 ? 2 : 1);
-        }
-        view.vod_focus += pages * kRows;
-    }
+        view.vod_focus += steps_.rows(input);
+    // L2 and R2 turn a page, and keep turning while they are held (PageTurns).
+    const double now =
+        std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    view.vod_focus += pages_.turn(input, now) * kRows;
     view.vod_focus = std::clamp(view.vod_focus, 0, std::max(0, static_cast<int>(rows_.size()) - 1));
     if (old != view.vod_focus)
         feedback.play(audio::Cue::focus);
@@ -706,6 +680,8 @@ int VodScreen::hints(ui::Hint *out, int capacity) const
         if (count < capacity)
             out[count++] = {ui::Button::touchpad, tr("Normal / PIN / Kids")};
     }
+    if (count<capacity &&static_cast<int>(rows_.size())> kRows)
+        out[count++] = {ui::Button::l2, tr("Page"), ui::Button::r2};
     return count;
 }
 unsigned VodScreen::result_count() const

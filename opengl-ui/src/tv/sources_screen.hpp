@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "tv/list_pace.hpp"
 #include "tv/shared.hpp"
 #include "ui/components/list.hpp"
 #include "ui/glyphs.hpp"
@@ -38,6 +39,8 @@ class SourcesScreen
 
     Shared &shared_;
     ui::ListView list_;
+    // Held, Up and Down go several sources a step (L2 and R2 have their own uses here).
+    HeldSteps steps_;
     ui::ListView user_agents_;
     std::int64_t http_source_ = 0;
     unsigned seen_revision_ = 0;

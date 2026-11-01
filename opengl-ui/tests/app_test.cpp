@@ -1393,6 +1393,23 @@ TEST_F(AppTest, ProviderCategoriesAreBrowsableAndCanBeHiddenFromTheController)
     EXPECT_TRUE(model_->provider_category().empty());
 }
 
+TEST_F(AppTest, TheTriggersTurnPagesOfProviderCategories)
+{
+    std::string text = "#EXTM3U\n";
+    for (int i = 10; i < 50; ++i)
+        text += "#EXTINF:-1 group-title=\"Group " + std::to_string(i) + "\",Channel " +
+                std::to_string(i) + "\nhttps://example.invalid/" + std::to_string(i) + "\n";
+    use_playlist(text);
+    press(Action::touch); // All provider categories, then Group 10 to Group 49
+    press(Action::jump_next);
+    press(Action::jump_next);
+    press(Action::jump_prev);
+    press(Action::confirm); // eight rows down: the eighth category
+    EXPECT_EQ(model_->provider_category(), "Group 17");
+    press(Action::back);
+    EXPECT_TRUE(model_->provider_category().empty());
+}
+
 TEST_F(AppTest, FavoriteFoldersCanBeCreatedAndAssignedFromTheController)
 {
     press(Action::west);
@@ -1660,6 +1677,51 @@ TEST_F(AppTest, AHeldTriggerKeepsTurningPages)
     // And back the same way.
     hold(Action::jump_prev, 240);
     EXPECT_EQ(position(), 0);
+}
+
+TEST_F(AppTest, AHeldDownGoesFasterTheLongerItIsHeld)
+{
+    use_playlist(large_list::playlist(3000));
+    ASSERT_EQ(model_->visible_count(), 3000u);
+    // A press is one row of five.
+    move(Direction::down, 20);
+    EXPECT_EQ(position(), 5);
+    // Held: the kit repeats every 0.11 s (about seven frames). One row a repeat for seven
+    // repeats, two for eight, then four: 1 + 7 + 16 + 48 rows after 27 repeats.
+    hui::InputFrame input;
+    input.connected = true;
+    input.nav = Direction::down;
+    input.nav_repeat = true;
+    for (int i = 0; i < 27; ++i)
+    {
+        frame(input);
+        idle(6);
+    }
+    EXPECT_EQ(position(), 72 * 5);
+    // Let go and press again: one row.
+    move(Direction::down);
+    EXPECT_EQ(position(), 73 * 5);
+    // Held Up goes back the same way and stops on the first row.
+    move(Direction::up);
+    input.nav = Direction::up;
+    for (int i = 0; i < 40 && position() > 0; ++i)
+    {
+        frame(input);
+        idle(6);
+    }
+    EXPECT_EQ(position(), 0);
+    EXPECT_FALSE(app_->tabs_focused());
+}
+
+TEST_F(AppTest, AHeldTriggerTurnsMorePagesAfterAFewSeconds)
+{
+    use_playlist(large_list::playlist(20000));
+    ASSERT_EQ(model_->visible_count(), 20000u);
+    // Eight seconds: a page every 0.12 s, then every 0.07 s would be about a hundred pages
+    // of ten; after 3, 5 and 7 s each turn is two, four and eight pages.
+    hold(Action::jump_next, 480);
+    EXPECT_GT(position(), 2500);
+    EXPECT_EQ(position() % 10, 0);
 }
 
 TEST_F(AppTest, AHoldEndsWhenSomethingElseTakesTheController)

@@ -233,6 +233,10 @@ void LibrarySheet::handle(const InputFrame &input, ui::Feedback &feedback)
                                     &LibrarySheet::named, this);
         return;
     }
+    // The rows the sheet shows at once.
+    constexpr int kPage = 8;
+    if (pace_list(list_, input, steps_, &pages_, clock_, kPage, feedback))
+        return;
     const auto event = list_.handle(input, feedback);
     const int at = list_.focus();
     const std::string value = at > 0 && static_cast<std::size_t>(at) <= values_.size()
@@ -471,6 +475,7 @@ void LibrarySheet::update(float dt)
         sync();
     list_.style.reduced_motion = shared_.settings.reduced_motion;
     list_.update(dt);
+    clock_ += dt;
 }
 
 void LibrarySheet::draw(ui::Canvas &canvas) const
@@ -524,8 +529,9 @@ void LibrarySheet::draw(ui::Canvas &canvas) const
     const ui::Hint category_hints[] = {{ui::Button::cross, tr("Open")},
                                        {ui::Button::square, tr("Show / Hide")},
                                        {ui::Button::triangle, tr("Normal / PIN / Kids")},
+                                       {ui::Button::l2, tr("Page"), ui::Button::r2},
                                        {ui::Button::circle, tr("Back")}};
-    draw_hint_row(draw, fonts, folders_ ? folder_hints : category_hints, folders_ ? 5 : 4, 400,
-                  1120, hint_layout(908));
+    draw_hint_row(draw, fonts, folders_ ? folder_hints : category_hints, 5, 400, 1120,
+                  hint_layout(908));
 }
 } // namespace ptv

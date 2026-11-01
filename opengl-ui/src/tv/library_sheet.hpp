@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #pragma once
+#include "tv/list_pace.hpp"
 #include "tv/shared.hpp"
 #include "ui/components/list.hpp"
 
@@ -38,6 +39,11 @@ class LibrarySheet
     static void named(const char *text, void *context);
     Shared &shared_;
     ui::ListView list_;
+    // Held, Up and Down go several rows a step, and L2 and R2 turn pages of a provider's
+    // hundreds of categories, by the sheet's own clock.
+    HeldSteps steps_;
+    PageTurns pages_;
+    double clock_ = 0.0;
     bool open_ = false;
     bool folders_ = false;
     bool dirty_ = false;

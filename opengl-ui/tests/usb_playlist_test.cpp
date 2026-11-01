@@ -9,8 +9,10 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <string>
 #include <thread>
 #include <unistd.h>
+#include <vector>
 namespace
 {
 class UsbPlaylistTest : public ::testing::Test
@@ -128,6 +130,48 @@ TEST_F(UsbPlaylistTest, ControllerImportsMixedPlaylistAndRefreshRetainsCacheWith
     EXPECT_EQ(reopened.channel_count(), 2u);
     EXPECT_EQ(reopened.channel(0).name, "Changed");
     reopened.close();
+}
+TEST_F(UsbPlaylistTest, AHeldDirectionGoesThroughTheSourcesFaster)
+{
+    for (int i = 0; i < 24; ++i)
+        std::ofstream(mount + "/usb0/list" + std::to_string(10 + i) + ".m3u") << "#EXTM3U\n";
+    ptv::Model model(dir);
+    model.set_usb_root(mount);
+    ASSERT_TRUE(model.open());
+    ASSERT_TRUE(settle(model));
+    hui::ui::Fonts fonts;
+    ptv::Settings settings;
+    ptv::Shared shared(model, fonts, settings);
+    ptv::SourcesScreen screen(shared);
+    hui::ui::Feedback feedback;
+    hui::InputFrame down, held, up;
+    down.nav = hui::Direction::down;
+    held = down;
+    held.nav_repeat = true;
+    up.nav = hui::Direction::up;
+    // The rows, one press at a time.
+    std::vector<std::int64_t> rows{screen.focused_id()};
+    for (int i = 0; i < 80; ++i)
+    {
+        screen.handle(down, feedback);
+        if (screen.focused_id() == rows.back())
+            break;
+        rows.push_back(screen.focused_id());
+    }
+    ASSERT_GT(rows.size(), 20u);
+    for (int i = 0; i < 80; ++i)
+        screen.handle(up, feedback);
+    ASSERT_EQ(screen.focused_id(), rows.front());
+    // Held: one row a repeat for seven repeats, then two.
+    screen.handle(down, feedback);
+    for (int i = 0; i < 9; ++i)
+        screen.handle(held, feedback);
+    EXPECT_EQ(screen.focused_id(), rows[1 + 7 + 2 * 2]);
+    // To the end, and no further.
+    for (int i = 0; i < 40; ++i)
+        screen.handle(held, feedback);
+    EXPECT_EQ(screen.focused_id(), rows.back());
+    model.close();
 }
 TEST_F(UsbPlaylistTest, CustomHeadersUseInitialStreamOriginForLocalPlaylist)
 {

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "tv/list_pace.hpp"
 #include "tv/shared.hpp"
 #include "ui/components/grid.hpp"
 #include "ui/components/stat.hpp"
@@ -76,8 +77,6 @@ class BrowseScreen
 
     unsigned focused_index() const;
     int current_letter() const;
-    // L2 or R2 this frame: a press, or one more step of a hold.
-    int page_turn(const InputFrame &input, bool *repeat);
     // The focus went from `before` to where it is: the hero follows, with its
     // hand-over or (in a run of steps) at once.
     void show_focus(int before, bool animate);
@@ -120,11 +119,11 @@ class BrowseScreen
     // The plate under the letter of the channel in focus glides along the rail.
     tween::Spring rail_y_;
     tween::Spring rail_focus_;
-    // A held L2 or R2 keeps turning pages: which way, for how long, and when
-    // the next page is due.
-    int page_dir_ = 0;
-    float page_hold_ = 0.0f;
-    float page_due_ = 0.0f;
+    // Held, Up and Down go several rows a step and L2 and R2 keep turning pages, faster the
+    // longer they are held; the pages go by this screen's own clock.
+    HeldSteps steps_;
+    PageTurns pages_;
+    double clock_ = 0.0;
     bool handled_ = false;
 };
 

@@ -1703,6 +1703,59 @@ TEST_F(VodTest, LettersFollowTheSearchAndEpisodesHaveNone)
     model.close();
 }
 
+TEST_F(VodTest, AHeldDirectionAndTheTriggersGoThroughALongListFaster)
+{
+    std::string records = "[";
+    for (int i = 0; i < 300; ++i)
+        records += std::string(i ? "," : "") + "{\"stream_id\":" + std::to_string(1000 + i) +
+                   ",\"name\":\"Film " + std::to_string(1000 + i) +
+                   "\",\"container_extension\":\"mp4\",\"category_id\":2}";
+    response("get_vod_streams", records + "]");
+    ptv::Model model(dir);
+    ASSERT_TRUE(model.open());
+    model.view.vod_kind = static_cast<int>(ptv::VodKind::movies);
+    model.view.vod_all = true;
+    const hui::ui::Fonts fonts{};
+    ptv::Shared shared(model, fonts, {});
+    ptv::VodScreen screen(shared);
+    screen.enter();
+    ASSERT_TRUE(settle(model));
+    screen.update();
+    ASSERT_EQ(screen.result_count(), 300u);
+    hui::ui::Feedback feedback;
+    hui::InputFrame input;
+    input.nav = hui::Direction::down;
+    screen.handle(input, feedback);
+    EXPECT_EQ(model.view.vod_focus, 1);
+    // Held: one row a repeat for seven repeats, two for eight, then four.
+    input.nav_repeat = true;
+    for (int i = 0; i < 27; ++i)
+        screen.handle(input, feedback);
+    EXPECT_EQ(model.view.vod_focus, 1 + 7 + 16 + 48);
+    // A press again is one row; R2 and L2 are a page of seven.
+    input.nav_repeat = false;
+    screen.handle(input, feedback);
+    EXPECT_EQ(model.view.vod_focus, 73);
+    hui::InputFrame page;
+    page.pressed = page.held = hui::action_bit(hui::Action::jump_next);
+    screen.handle(page, feedback);
+    EXPECT_EQ(model.view.vod_focus, 80);
+    page.pressed = page.held = hui::action_bit(hui::Action::jump_prev);
+    screen.handle(page, feedback);
+    EXPECT_EQ(model.view.vod_focus, 73);
+    // Held Up stops on the first row.
+    input.nav = hui::Direction::up;
+    input.nav_repeat = true;
+    for (int i = 0; i < 60; ++i)
+        screen.handle(input, feedback);
+    EXPECT_EQ(model.view.vod_focus, 0);
+    hui::ui::Hint hints[7]{};
+    const int count = screen.hints(hints, 7);
+    ASSERT_GT(count, 0);
+    EXPECT_STREQ(hints[count - 1].label, "Page");
+    model.close();
+}
+
 TEST_F(VodTest, NewestAdditionsComeFirstAndUndatedTitlesFollowByTitle)
 {
     response("get_vod_streams",

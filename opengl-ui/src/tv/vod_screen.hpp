@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "tv/channel_text.hpp"
+#include "tv/list_pace.hpp"
 #include "tv/shared.hpp"
 #include "ui/glyphs.hpp"
 #include <array>
@@ -84,8 +85,8 @@ class VodScreen
     int filter_focus_ = 0;
     float detail_scroll_ = 0;
     std::string detail_item_id_;
-    // A held L2 or R2 keeps turning pages, faster the longer it is held.
-    int page_dir_ = 0;
-    double page_started_ = 0.0, page_due_ = 0.0;
+    // Held, Up and Down and L2 and R2 go faster the longer they are held.
+    HeldSteps steps_;
+    PageTurns pages_;
 };
 } // namespace ptv

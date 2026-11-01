@@ -176,7 +176,10 @@ No PlxNative code is included.
 - Preview the focused live channel, with sound, on the large television after
   a moment on it.
 - Turn pages by holding L2 or R2, faster the longer they are held, in Live TV,
-  Movies, and Series; jump by letter with the column beside every list.
+  Movies, Series and the provider's categories; a held Up or Down goes faster
+  too, in those lists and in Sources. Jump by letter with the column beside
+  Live TV, and beside Movies and TV shows in On demand (Right from the list,
+  which turns it to Title A–Z).
 - Keep up to 65,536 favorites, organized in named folders.
 - Hide the channels that did not open the last time, and start on the channel
   watched last, from Settings.
@@ -310,13 +313,13 @@ at 3840×2160. Codec and renderer details are documented in
 
 | Input | Action |
 | --- | --- |
-| D-pad / left stick | Move focus; Right past the last column reaches the letters |
+| D-pad / left stick | Move focus, faster the longer Up or Down is held; Right past the last column (in On demand, Right) reaches the letters |
 | Cross | Select, open, or play |
 | Circle | Back, dismiss, or clear active filters |
 | Square | Add or remove a favorite |
 | Triangle | Open advanced search and filters |
 | L1 / R1 | Switch between Home, Live TV, On demand, Favorites, Sources, Settings, and About |
-| L2 / R2 | Previous or next page; hold to keep turning |
+| L2 / R2 | Previous or next page; hold to keep turning, two, four and eight pages at a time after 3, 5 and 7 seconds |
 | Triangle on a configurable source | Edit the custom M3U URL or Xtream account |
 | Square in Sources | Cycle daily, weekly and manual refresh |
 | Touchpad in Live TV / Favorites | Provider categories / favorite folders |

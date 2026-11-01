@@ -37,12 +37,6 @@ constexpr float kRailTop = 506.0f; // the centre of '#'
 constexpr float kRailPitch = 18.5f;
 constexpr float kRailText = 15.0f;
 constexpr float kGridWidth = kWidth - 2.0f * kMargin - kRailRoom;
-// A held L2 or R2: the wait before the second page, then the pace, then the
-// pace after a long hold.
-constexpr float kPageDelay = 0.40f;
-constexpr float kPagePace = 0.12f;
-constexpr float kPageFastAfter = 1.6f;
-constexpr float kPageFastPace = 0.07f;
 constexpr Rect kHeroArt{1304.0f, 126.0f, 520.0f, 300.0f};
 constexpr float kHeroRadius = 28.0f;
 constexpr float kHeroText = 1120.0f; // the width the hero's words may take
@@ -147,7 +141,7 @@ void BrowseScreen::show(bool favorites)
     swap_.running = false;
     rail_y_.snap(kRailTop + static_cast<float>(current_letter()) * kRailPitch);
     rail_focus_.snap(0.0f);
-    page_dir_ = 0;
+    pages_.stop();
     enter();
 }
 
@@ -195,35 +189,6 @@ std::vector<std::string> BrowseScreen::image_urls() const
             urls.emplace_back(channel.tvg_logo);
     }
     return urls;
-}
-
-int BrowseScreen::page_turn(const InputFrame &input, bool *repeat)
-{
-    *repeat = false;
-    handled_ = true;
-    const int pressed = input.is_pressed(Action::jump_next)   ? 1
-                        : input.is_pressed(Action::jump_prev) ? -1
-                                                              : 0;
-    if (pressed != 0)
-    {
-        page_dir_ = pressed;
-        page_hold_ = 0.0f;
-        page_due_ = kPageDelay;
-        return pressed;
-    }
-    const int held = input.is_held(Action::jump_next)   ? 1
-                     : input.is_held(Action::jump_prev) ? -1
-                                                        : 0;
-    if (held == 0 || held != page_dir_)
-    {
-        page_dir_ = 0;
-        return 0;
-    }
-    if (page_hold_ < page_due_)
-        return 0;
-    page_due_ += page_hold_ >= kPageFastAfter ? kPageFastPace : kPagePace;
-    *repeat = true;
-    return held;
 }
 
 void BrowseScreen::show_focus(int before, bool animate)
@@ -360,7 +325,8 @@ BrowseScreen::Result BrowseScreen::handle(const InputFrame &input, ui::Feedback 
 {
     Model &model = shared_.model;
     bool repeat = false;
-    const int turn = page_turn(input, &repeat);
+    handled_ = true;
+    const int turn = pages_.turn(input, clock_, &repeat);
     if (!model.has_catalog())
     {
         if (!model.is_set_up(model.active_source()) && input.is_pressed(Action::confirm))
@@ -465,6 +431,22 @@ BrowseScreen::Result BrowseScreen::handle(const InputFrame &input, ui::Feedback 
     }
 
     const int before = grid_.focus();
+    // Held, Up and Down go several rows a step (HeldSteps); the grid takes single steps,
+    // and the edges, itself.
+    if (input.nav == Direction::up || input.nav == Direction::down)
+    {
+        const int rows = steps_.rows(input);
+        const int row = before / kColumns, last = (grid_.count() - 1) / kColumns;
+        const int to = std::clamp(row + (input.nav == Direction::down ? rows : -rows), 0, last);
+        if (rows > 1 && to != row)
+        {
+            grid_.set_focus(std::min(to * kColumns + before % kColumns, grid_.count() - 1), false);
+            feedback.play(audio::Cue::focus, input.nav == Direction::down ? 0.97f : 1.03f, 0.0f,
+                          0.5f);
+            show_focus(before, false);
+            return Result::none;
+        }
+    }
     const ui::Event event = grid_.handle(input, feedback);
     if (grid_.exit() == Direction::up)
     {
@@ -524,7 +506,7 @@ BrowseScreen::Result BrowseScreen::handle(const InputFrame &input, ui::Feedback 
         const int target = std::clamp(before + turn * kColumns * kRowsInView, 0, grid_.count() - 1);
         if (target == before)
         {
-            page_dir_ = 0; // the end of the list ends the hold
+            pages_.stop(); // the end of the list ends the hold
             if (!repeat)
                 feedback.play(audio::Cue::error, 1.0f, 0.0f, 0.6f);
         }
@@ -636,11 +618,10 @@ void BrowseScreen::update(float dt)
     }
     rail_y_.update(dt, 24.0f);
     rail_focus_.update(dt, 18.0f);
+    clock_ += dt;
     if (!handled_)
-        page_dir_ = 0; // something else had the controller this frame
+        pages_.stop(); // something else had the controller this frame
     handled_ = false;
-    if (page_dir_ != 0)
-        page_hold_ += dt;
 
     // ---- the chips say how many each list holds ----
     rebuild_chips();

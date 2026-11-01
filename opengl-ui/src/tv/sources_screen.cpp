@@ -266,6 +266,8 @@ void SourcesScreen::handle(const InputFrame &input, ui::Feedback &feedback)
         }
         return;
     }
+    if (pace_list(list_, input, steps_, nullptr, 0.0, 0, feedback))
+        return;
     if (list_.handle(input, feedback) == ui::Event::activated)
     {
         if (id == -7)
