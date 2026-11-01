@@ -172,6 +172,9 @@ typedef struct iptv_stream_telemetry {
     uint64_t last_video_pts_us;
     uint64_t last_audio_pts_us;
     uint64_t reopen_pts_us; /* First changed setup's clock, or PTS_UNKNOWN. */
+    /* 1 when last_error is a download parser's (the live history's, which reads the
+     * transport before playback does), adopted by iptv_stream_adopt_failure(). */
+    uint32_t download_failure;
 } iptv_stream_telemetry_t;
 
 typedef struct iptv_stream_session {
@@ -229,6 +232,22 @@ iptv_stream_state_t iptv_stream_state(
 const iptv_stream_telemetry_t *iptv_stream_telemetry(
     const iptv_stream_session_t *session);
 const char *iptv_stream_state_name(iptv_stream_state_t state);
+
+/* A live channel's transport is parsed first by its history's own download parser
+ * (iptv::Timeshift). When that parser refuses the transport, the playback session never gets a
+ * byte, so it has nothing to say. This gives the playback telemetry the download parser's
+ * account: the result, the error text, what it saw of the programme (PIDs, stream types,
+ * codec, first other stream type) and its transport counters, and sets download_failure. A
+ * playback session that already failed keeps its own account. result is the history's
+ * refusal; IPTV_STREAM_OK changes nothing. */
+void iptv_stream_adopt_failure(iptv_stream_telemetry_t *playback,
+                               const iptv_stream_telemetry_t *download, int result);
+/* The sentence the viewer is shown for a failed stream, from its telemetry: an unsupported
+ * format says so and why ("The channel uses an unsupported media format: the programme has no
+ * supported video (stream type 0x10)."); any other failure gives its error text. Returns 0, and
+ * an empty string, when the telemetry has no error text. */
+int iptv_stream_failure_text(const iptv_stream_telemetry_t *telemetry, char *out,
+                             size_t capacity);
 
 #ifdef __cplusplus
 }

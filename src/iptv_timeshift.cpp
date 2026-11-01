@@ -242,6 +242,11 @@ Timeshift::Range Timeshift::range() const
     std::lock_guard lock(mutex_);
     return range_locked();
 }
+iptv_stream_telemetry_t Timeshift::replay_telemetry() const
+{
+    std::lock_guard lock(mutex_);
+    return metadata_.telemetry;
+}
 Timeshift::Range Timeshift::range_locked() const
 {
     Range result{begin_, end_, 0, latest_us_, generation_, !marks_.empty()};

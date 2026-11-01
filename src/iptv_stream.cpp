@@ -1112,13 +1112,25 @@ static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const
     for (size_t i = 0; i < audio_track_count; ++i)
         if (audio_tracks[i].pid == next.video_pid)
             return fail(session, IPTV_STREAM_MALFORMED_TS, "audio and video share a PID");
+    // Before any refusal below: the receipt names the stream type a programme had instead.
+    session->telemetry.first_other_stream_type = first_other_stream_type;
+    if (at == end && !next.video_pid)
+    {
+        char message[IPTV_STREAM_ERROR_TEXT_BYTES];
+        if (first_other_stream_type)
+            std::snprintf(message, sizeof(message),
+                          "the programme has no supported video (stream type 0x%02x)",
+                          first_other_stream_type);
+        else
+            std::snprintf(message, sizeof(message), "the programme lists no video stream");
+        return fail(session, IPTV_STREAM_UNSUPPORTED_FORMAT, message);
+    }
     if (at != end || !next.video_pid || next.video_pid == kNullPid ||
         (next.audio_pid != 0 && (next.video_pid == next.audio_pid || next.audio_pid == kNullPid)))
         return fail(session, IPTV_STREAM_UNSUPPORTED_FORMAT,
                     "PMT requires H.264 or HEVC video with supported transport audio");
     next.video_bit_depth = 8;
     next.video_chroma_format = IPTV_STREAM_CHROMA_420;
-    session->telemetry.first_other_stream_type = first_other_stream_type;
 
     const bool same_video = impl->pmt_seen && same_video_program(&impl->format, &next);
     const bool same_audio = impl->pmt_seen && impl->format.audio_pid == next.audio_pid &&
@@ -2952,4 +2964,44 @@ const char *iptv_stream_state_name(iptv_stream_state_t state)
     default:
         return "unknown";
     }
+}
+
+void iptv_stream_adopt_failure(iptv_stream_telemetry_t *playback,
+                               const iptv_stream_telemetry_t *download, int result)
+{
+    if (!playback || !download || result == IPTV_STREAM_OK ||
+        playback->state == IPTV_STREAM_STATE_ERROR || playback->last_error[0])
+        return;
+    playback->state = IPTV_STREAM_STATE_ERROR;
+    playback->last_result = result;
+    ++playback->error_count;
+    copy_error(playback, download->last_error[0] ? download->last_error
+                                                 : "the live history refused the transport");
+    // What the download parser saw of the programme: the playback parser saw nothing.
+    playback->format = download->format;
+    playback->first_other_stream_type = download->first_other_stream_type;
+    playback->first_rap_hevc_parameter_mask = download->first_rap_hevc_parameter_mask;
+    playback->packets = download->packets;
+    playback->pat_sections = download->pat_sections;
+    playback->pmt_sections = download->pmt_sections;
+    playback->video_pes = download->video_pes;
+    playback->audio_pes = download->audio_pes;
+    playback->continuity_errors = download->continuity_errors;
+    playback->dropped_payloads = download->dropped_payloads;
+    playback->download_failure = 1;
+}
+
+int iptv_stream_failure_text(const iptv_stream_telemetry_t *telemetry, char *out, size_t capacity)
+{
+    if (!out || !capacity)
+        return 0;
+    out[0] = '\0';
+    if (!telemetry || !telemetry->last_error[0])
+        return 0;
+    if (telemetry->last_result == IPTV_STREAM_UNSUPPORTED_FORMAT)
+        std::snprintf(out, capacity, "The channel uses an unsupported media format: %s.",
+                      telemetry->last_error);
+    else
+        std::snprintf(out, capacity, "%s", telemetry->last_error);
+    return out[0] != '\0';
 }

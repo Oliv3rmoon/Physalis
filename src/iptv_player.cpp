@@ -232,6 +232,19 @@ struct DirectDiagnostics
 
 DirectDiagnostics gDirectDiagnostics{};
 
+// HLS segments, for a channel that does not play: how many were opened, and what the first one
+// was (its first bytes, its address's extension, its Content-Type). Never the address itself.
+struct SegmentDiagnostics
+{
+    std::uint32_t segments = 0;
+    std::uint32_t first_count = 0;
+    std::uint8_t first[16]{};
+    char extension[12]{};
+    char content_type[64]{};
+};
+
+SegmentDiagnostics gSegmentDiagnostics{};
+
 const char *DirectEndName(DirectEnd end)
 {
     switch (end)
@@ -337,6 +350,15 @@ void NotifyLastPlaybackError()
     Notify(message);
 }
 
+// Which parser's error a receipt's stream_error is: the live history's (which reads a live
+// channel's transport before playback does) or the playback session's own.
+const char *ErrorSource(const iptv_stream_telemetry_t &stream)
+{
+    if (!stream.last_error[0])
+        return "-";
+    return stream.download_failure ? "live-history" : "playback";
+}
+
 void SaveReceipt(const char *channel_name, std::uint64_t duration_ms, int result,
                  const iptv_stream_telemetry_t &stream, const iptv_native_telemetry_t &native,
                  std::uint32_t native_telemetry_available, std::uint32_t playback_stop_requested,
@@ -348,6 +370,11 @@ void SaveReceipt(const char *channel_name, std::uint64_t duration_ms, int result
     std::FILE *file = std::fopen(temporary, "wb");
     if (!file)
         return;
+    // The first HLS segment's opening bytes, in hex: what it was when it would not play.
+    char segment_bytes[sizeof(gSegmentDiagnostics.first) * 2u + 1u]{};
+    for (std::uint32_t i = 0;
+         i < gSegmentDiagnostics.first_count && i < sizeof(gSegmentDiagnostics.first); ++i)
+        std::snprintf(segment_bytes + i * 2u, 3u, "%02x", gSegmentDiagnostics.first[i]);
     std::fprintf(
         file,
         "IPTV_RECEIPT_V2\n"
@@ -359,6 +386,10 @@ void SaveReceipt(const char *channel_name, std::uint64_t duration_ms, int result
         "stream_audio_disabled=%u\n"
         "stream_audio_warning=%s\n"
         "first_other_stream_type=0x%02x\nfirst_rap_hevc_parameter_mask=0x%x\n"
+        "video_stream_type=0x%02x\nstream_error_from=%s\n"
+        "stream_packets=%llu\nstream_pmt_sections=%llu\n"
+        "hls_segments=%u\nhls_first_segment_extension=%s\nhls_first_segment_type=%s\n"
+        "hls_first_segment_bytes=%s\n"
         "audio_stream_type=0x%02x\naudio_pid=%u\naudio_rate=%u\naudio_channels=%u\n"
         "direct_end=%s\ndirect_elapsed_ms=%llu\ndirect_bytes=%llu\ndirect_reads=%llu\n"
         "direct_open_attempts=%u\ndirect_reconnects=%u\ndirect_read_errors=%u\n"
@@ -403,8 +434,14 @@ void SaveReceipt(const char *channel_name, std::uint64_t duration_ms, int result
         result, gLastPlaybackError, static_cast<int>(stream.state), stream.last_result,
         stream.last_error, stream.audio_disabled, stream.audio_warning,
         stream.first_other_stream_type, stream.first_rap_hevc_parameter_mask,
-        stream.format.audio_stream_type, stream.format.audio_pid, stream.format.audio_sample_rate,
-        stream.format.audio_channels, DirectEndName(gDirectDiagnostics.end),
+        stream.format.video_stream_type, ErrorSource(stream),
+        static_cast<unsigned long long>(stream.packets),
+        static_cast<unsigned long long>(stream.pmt_sections), gSegmentDiagnostics.segments,
+        gSegmentDiagnostics.extension[0] ? gSegmentDiagnostics.extension : "-",
+        gSegmentDiagnostics.content_type[0] ? gSegmentDiagnostics.content_type : "-",
+        segment_bytes[0] ? segment_bytes : "-", stream.format.audio_stream_type,
+        stream.format.audio_pid, stream.format.audio_sample_rate, stream.format.audio_channels,
+        DirectEndName(gDirectDiagnostics.end),
         static_cast<unsigned long long>(
             gDirectDiagnostics.started_usec && MonotonicUsec() >= gDirectDiagnostics.started_usec
                 ? (MonotonicUsec() - gDirectDiagnostics.started_usec) / UINT64_C(1000)
@@ -1816,6 +1853,11 @@ class StreamRunner
         const auto range = history_->range();
         if (range.replay_result != IPTV_STREAM_OK)
         {
+            // The history's parser refused the transport, so playback never got a byte: its
+            // account (what it refused, and what the programme had) becomes the session's,
+            // published with the result below for FeedRequest and the receipt.
+            const auto refused = history_->replay_telemetry();
+            iptv_stream_adopt_failure(&session_.telemetry, &refused, range.replay_result);
             read_ahead_result_.store(range.replay_result, std::memory_order_release);
             return false;
         }
@@ -2248,7 +2290,8 @@ static_assert(!CanReconnectTransport(DirectEnd::decoder_reopen));
 
 FeedResult FeedRequest(iptv::http::StreamRequest *request, StreamRunner *runner,
                        std::uint8_t *buffer, std::size_t buffer_bytes,
-                       DirectDiagnostics *diagnostics = nullptr)
+                       DirectDiagnostics *diagnostics = nullptr,
+                       SegmentDiagnostics *segment = nullptr)
 {
     if (!request || !runner || !buffer || !buffer_bytes)
         return FeedResult::failed;
@@ -2297,6 +2340,12 @@ FeedResult FeedRequest(iptv::http::StreamRequest *request, StreamRunner *runner,
             ++diagnostics->reads;
             diagnostics->bytes += static_cast<std::size_t>(read);
         }
+        if (segment && !segment->first_count)
+        {
+            segment->first_count = static_cast<std::uint32_t>(
+                std::min<std::size_t>(sizeof(segment->first), static_cast<std::size_t>(read)));
+            std::memcpy(segment->first, buffer, segment->first_count);
+        }
         const std::uint64_t push_started = MonotonicUsec();
         const int pushed = runner->Push(buffer, static_cast<std::size_t>(read));
         if (diagnostics)
@@ -2316,10 +2365,11 @@ FeedResult FeedRequest(iptv::http::StreamRequest *request, StreamRunner *runner,
         {
             if (diagnostics)
                 diagnostics->end = DirectEnd::decoder_error;
-            const iptv_stream_telemetry_t *telemetry = runner->Telemetry();
-            SetLastPlaybackError("%s", telemetry && telemetry->last_error[0]
-                                           ? telemetry->last_error
-                                           : "The channel uses an unsupported media format.");
+            char reason[sizeof(gLastPlaybackError)]{};
+            SetLastPlaybackError(
+                "%s", iptv_stream_failure_text(runner->Telemetry(), reason, sizeof(reason))
+                          ? reason
+                          : "The channel uses an unsupported media format.");
             return FeedResult::failed;
         }
         const std::uint64_t presented = runner->PresentedFrames();
@@ -2463,7 +2513,17 @@ int OpenAndFeedSegment(const char *url, StreamRunner *runner, std::uint8_t *buff
             sceKernelUsleep(100000u);
             continue;
         }
-        const FeedResult fed = FeedRequest(&request, runner, buffer, kNetworkReadBytes);
+        // The first segment of a playback is described in its receipt.
+        const bool first = ++gSegmentDiagnostics.segments == 1u;
+        if (first)
+        {
+            iptv::http::UrlExtension(url, gSegmentDiagnostics.extension,
+                                     sizeof(gSegmentDiagnostics.extension));
+            std::snprintf(gSegmentDiagnostics.content_type,
+                          sizeof(gSegmentDiagnostics.content_type), "%s", request.content_type);
+        }
+        const FeedResult fed = FeedRequest(&request, runner, buffer, kNetworkReadBytes, nullptr,
+                                           first ? &gSegmentDiagnostics : nullptr);
         iptv::http::CloseStream(&request);
         if (fed == FeedResult::stopped)
             return 1;
@@ -3246,6 +3306,7 @@ static int RunPlayerOnce(const char *url, const char *channel_name, const char *
     if (sleep_deadline && playback_started_us >= sleep_deadline)
         return 1;
     gDirectDiagnostics = {};
+    gSegmentDiagnostics = {};
 #if IPTV_PROBE
     std::remove("/download0/iptv-attempt-receipt.txt");
 #endif
@@ -3372,7 +3433,11 @@ static int RunPlayerOnce(const char *url, const char *channel_name, const char *
                     SetLastPlaybackError("The PS5 video backend failed (native error 0x%08X).",
                                          static_cast<unsigned>(native_result));
                 else if (telemetry && telemetry->last_error[0] && !gLastPlaybackError[0])
-                    SetLastPlaybackError("%s", telemetry->last_error);
+                {
+                    char reason[sizeof(gLastPlaybackError)]{};
+                    (void)iptv_stream_failure_text(telemetry, reason, sizeof(reason));
+                    SetLastPlaybackError("%s", reason);
+                }
                 if (!gLastPlaybackError[0])
                     SetLastPlaybackError("The channel could not be played.");
                 NotifyLastPlaybackError();

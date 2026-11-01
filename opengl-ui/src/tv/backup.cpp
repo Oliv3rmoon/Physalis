@@ -518,6 +518,9 @@ std::string sanitize_report(std::string_view receipt)
                                    "visible",
                                    "bit_depth",
                                    "audio_stream_type",
+                                   // What a refused programme had: transport stream types.
+                                   "video_stream_type",
+                                   "first_other_stream_type",
                                    "audio_rate",
                                    "audio_channels",
                                    "direct_elapsed_ms",

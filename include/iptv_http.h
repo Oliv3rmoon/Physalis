@@ -76,6 +76,8 @@ struct StreamRequest
     std::int64_t size = -1; // complete resource length, when supplied by the server
     char effective_url[kMaxUrlBytes + 1u] = {};
     char error_response[kMaxErrorResponseBytes + 1u] = {};
+    // The answer's Content-Type without parameters, for the diagnostic log; empty when absent.
+    char content_type[64] = {};
 };
 
 struct RequestHeaders
@@ -103,6 +105,15 @@ bool ExtraHeadersForRequest(const RequestHeaders &headers, std::vector<NamedHead
 // Validate a ranged response before the demuxer interprets its first byte.
 bool ParseStreamRange(std::string_view headers, int status, std::int64_t offset,
                       std::int64_t *size);
+
+// The response's Content-Type, lower case and without its parameters (";charset=..."), copied
+// into `out` with anything unprintable left out. False, and `out` empty, when there is none.
+bool ContentTypeOf(std::string_view headers, char *out, std::size_t capacity);
+
+// The extension of a URL's last path segment, lower case, at most eight letters or digits
+// ("ts", "m4s", "jpg"): never the address itself, which may carry credentials. Empty when the
+// segment has none.
+void UrlExtension(const char *url, char *out, std::size_t capacity);
 
 // Portal credentials belong only to the origin that was asked. Redirects
 // may still reach a CDN, but must not forward a MAC cookie or bearer token.

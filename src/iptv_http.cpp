@@ -91,6 +91,88 @@ bool ParseStreamRange(std::string_view headers, int status, std::int64_t offset,
     return true;
 }
 
+bool ContentTypeOf(std::string_view headers, char *out, std::size_t capacity)
+{
+    if (!out || capacity == 0)
+        return false;
+    out[0] = '\0';
+    if (headers.size() > 65536)
+        return false;
+    while (!headers.empty())
+    {
+        const auto end = headers.find('\n');
+        auto line = headers.substr(0, end);
+        headers = end == std::string_view::npos ? std::string_view{} : headers.substr(end + 1);
+        const auto colon = line.find(':');
+        if (colon != 12u)
+            continue;
+        bool named = true;
+        for (std::size_t i = 0; i < colon && named; ++i)
+        {
+            char c = line[i];
+            if (c >= 'A' && c <= 'Z')
+                c = static_cast<char>(c + ('a' - 'A'));
+            named = c == "content-type"[i];
+        }
+        if (!named)
+            continue;
+        auto value = line.substr(colon + 1);
+        value = value.substr(0, value.find(';'));
+        std::size_t written = 0;
+        for (const char c : value)
+        {
+            const unsigned char byte = static_cast<unsigned char>(c);
+            if (byte <= 0x20u || byte >= 0x7fu)
+                continue; // spaces, tabs, the line's \r and anything unprintable
+            if (written + 1u >= capacity)
+                break;
+            out[written++] = static_cast<char>(c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c);
+        }
+        out[written] = '\0';
+        return written != 0;
+    }
+    return false;
+}
+
+void UrlExtension(const char *url, char *out, std::size_t capacity)
+{
+    if (!out || capacity == 0)
+        return;
+    out[0] = '\0';
+    if (!url)
+        return;
+    std::string_view path(url);
+    path = path.substr(0, path.find_first_of("?#"));
+    const auto scheme = path.find("://");
+    if (scheme != std::string_view::npos)
+    {
+        const auto slash = path.find('/', scheme + 3u);
+        path = slash == std::string_view::npos ? std::string_view{} : path.substr(slash);
+    }
+    const auto segment = path.rfind('/');
+    if (segment != std::string_view::npos)
+        path.remove_prefix(segment + 1u);
+    const auto dot = path.rfind('.');
+    if (dot == std::string_view::npos)
+        return;
+    const auto extension = path.substr(dot + 1u);
+    if (extension.empty() || extension.size() > 8u || extension.size() + 1u > capacity)
+        return;
+    for (std::size_t i = 0; i < extension.size(); ++i)
+    {
+        char c = extension[i];
+        if (c >= 'A' && c <= 'Z')
+            c = static_cast<char>(c + ('a' - 'A'));
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')))
+        {
+            out[0] = '\0';
+            return;
+        }
+        out[i] = c;
+    }
+    out[extension.size()] = '\0';
+}
+
 namespace
 {
 
@@ -1540,13 +1622,14 @@ Status OpenStream(const char *url, const char *accept, StreamRequest *stream,
             const bool have_headers =
                 sceHttpGetAllResponseHeaders(stream->request, &response, &response_bytes) >= 0 &&
                 response;
-            if (!ParseStreamRange(have_headers ? std::string_view(response, response_bytes)
-                                               : std::string_view{},
-                                  stream->http_status, scoped.byte_offset, &stream->size))
+            const std::string_view answer =
+                have_headers ? std::string_view(response, response_bytes) : std::string_view{};
+            if (!ParseStreamRange(answer, stream->http_status, scoped.byte_offset, &stream->size))
             {
                 CloseStream(stream);
                 return Status::http_status_error;
             }
+            (void)ContentTypeOf(answer, stream->content_type, sizeof(stream->content_type));
             stream->open = true;
             return Status::ok;
         }

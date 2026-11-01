@@ -66,6 +66,10 @@ class Timeshift
     bool append(const std::uint8_t *data, std::size_t bytes);
     Read read(std::uint64_t offset, std::uint8_t *output, std::size_t capacity) const;
     Range range() const;
+    // The download parser's own view of the transport, copied: when range().replay_result is
+    // an error, its last_error says what the parser refused. Nothing reaches the decoder then,
+    // so the playback session's telemetry has nothing to say.
+    iptv_stream_telemetry_t replay_telemetry() const;
     std::optional<Position> seek(std::uint64_t pts_us) const;
     // Resume a changed decoder setup without seeking back into the old format.
     // No result until that point has complete retained configuration metadata.

@@ -10,6 +10,7 @@
 #include <array>
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <iterator>
 #include <vector>
@@ -1975,6 +1976,104 @@ TEST(IptvStreamTest, IgnoresUnknownAudioCodecWhileKeepingSupportedVideo)
     EXPECT_EQ(telemetry->first_other_stream_type, 0x90u);
     EXPECT_EQ(telemetry->error_count, 0u);
     EXPECT_EQ(iptv_stream_cleanup(&session), IPTV_STREAM_OK);
+}
+
+Packet NullPacket()
+{
+    Packet packet{};
+    packet.fill(0xff);
+    packet[0] = 0x47;
+    packet[1] = 0x1f;
+    packet[2] = 0xff;
+    packet[3] = 0x10;
+    return packet;
+}
+
+// A live channel goes through its history first, whose own parser refuses a programme it
+// cannot play. The playback session never gets a byte; the refusal, and what the programme
+// had, become its account, and the viewer is told what the stream was.
+TEST(IptvStreamTest, LiveHistoryRefusalSaysWhatTheProgrammeHad)
+{
+    for (const std::uint8_t video_type : {std::uint8_t{0x10}, std::uint8_t{0xea}})
+    {
+        iptv::Timeshift history(188 * 64);
+        ASSERT_TRUE(history.enable_replay());
+        std::vector<std::uint8_t> bytes;
+        AppendPacket(&bytes, PsiPacket(0, PatSection()));
+        AppendPacket(&bytes, PsiPacket(0x100, PmtSection(0x0f, 0x111, video_type)));
+        for (unsigned i = 0; i < 3; ++i)
+            AppendPacket(&bytes, NullPacket());
+        ASSERT_TRUE(history.append(bytes.data(), bytes.size()));
+        const auto range = history.range();
+        ASSERT_EQ(range.replay_result, IPTV_STREAM_UNSUPPORTED_FORMAT);
+        const auto refused = history.replay_telemetry();
+        char expected[96];
+        std::snprintf(expected, sizeof(expected),
+                      "the programme has no supported video (stream type 0x%02x)", video_type);
+        EXPECT_STREQ(refused.last_error, expected);
+        EXPECT_EQ(refused.first_other_stream_type, video_type);
+
+        // The playback session as FeedRequest finds it: opened, never fed.
+        iptv_stream_session_t playback{};
+        iptv_stream_init(&playback);
+        ASSERT_EQ(iptv_stream_open(&playback, nullptr, nullptr), IPTV_STREAM_OK);
+        ASSERT_EQ(iptv_stream_start(&playback), IPTV_STREAM_OK);
+        char text[192];
+        EXPECT_EQ(iptv_stream_failure_text(iptv_stream_telemetry(&playback), text, sizeof(text)),
+                  0);
+        EXPECT_STREQ(text, "");
+        iptv_stream_adopt_failure(&playback.telemetry, &refused, range.replay_result);
+        const auto *telemetry = iptv_stream_telemetry(&playback);
+        EXPECT_EQ(telemetry->state, IPTV_STREAM_STATE_ERROR);
+        EXPECT_EQ(telemetry->last_result, IPTV_STREAM_UNSUPPORTED_FORMAT);
+        EXPECT_STREQ(telemetry->last_error, expected);
+        EXPECT_EQ(telemetry->first_other_stream_type, video_type);
+        // A refused table selects nothing: no codec, no PIDs.
+        EXPECT_EQ(telemetry->format.video_codec, IPTV_STREAM_VIDEO_UNKNOWN);
+        EXPECT_EQ(telemetry->format.video_pid, 0u);
+        EXPECT_EQ(telemetry->packets, refused.packets);
+        EXPECT_GE(telemetry->packets, 2u);
+        EXPECT_EQ(telemetry->download_failure, 1u);
+        ASSERT_EQ(iptv_stream_failure_text(telemetry, text, sizeof(text)), 1);
+        char sentence[192];
+        std::snprintf(sentence, sizeof(sentence),
+                      "The channel uses an unsupported media format: %s.", expected);
+        EXPECT_STREQ(text, sentence);
+        // The receipt keeps the account through the playback session's close.
+        EXPECT_EQ(iptv_stream_cleanup(&playback), IPTV_STREAM_OK);
+        EXPECT_EQ(playback.telemetry.last_result, IPTV_STREAM_UNSUPPORTED_FORMAT);
+        EXPECT_STREQ(playback.telemetry.last_error, expected);
+    }
+}
+
+TEST(IptvStreamTest, AdoptedRefusalNeverReplacesThePlaybackSessionsOwnError)
+{
+    iptv_stream_telemetry_t download{};
+    std::snprintf(download.last_error, sizeof(download.last_error), "from the history");
+    download.first_other_stream_type = 0x10;
+    iptv_stream_telemetry_t playback{};
+    iptv_stream_adopt_failure(&playback, &download, IPTV_STREAM_OK);
+    EXPECT_EQ(playback.state, IPTV_STREAM_STATE_IDLE);
+    EXPECT_EQ(playback.download_failure, 0u);
+    playback.state = IPTV_STREAM_STATE_ERROR;
+    playback.last_result = IPTV_STREAM_NATIVE_ERROR;
+    std::snprintf(playback.last_error, sizeof(playback.last_error), "native video submit failed");
+    iptv_stream_adopt_failure(&playback, &download, IPTV_STREAM_UNSUPPORTED_FORMAT);
+    EXPECT_STREQ(playback.last_error, "native video submit failed");
+    EXPECT_EQ(playback.last_result, IPTV_STREAM_NATIVE_ERROR);
+    EXPECT_EQ(playback.first_other_stream_type, 0u);
+    EXPECT_EQ(playback.download_failure, 0u);
+    char text[192];
+    ASSERT_EQ(iptv_stream_failure_text(&playback, text, sizeof(text)), 1);
+    EXPECT_STREQ(text, "native video submit failed");
+    // A refusal without text still says where it came from.
+    iptv_stream_telemetry_t silent{};
+    iptv_stream_adopt_failure(&silent, &playback, IPTV_STREAM_MALFORMED_TS);
+    EXPECT_STREQ(silent.last_error, "native video submit failed");
+    iptv_stream_telemetry_t blank{}, quiet{};
+    iptv_stream_adopt_failure(&blank, &quiet, IPTV_STREAM_MALFORMED_TS);
+    EXPECT_STREQ(blank.last_error, "the live history refused the transport");
+    EXPECT_EQ(blank.download_failure, 1u);
 }
 
 TEST(IptvStreamTest, AcceptsHevcMain10AndRejectsInvalidBitDepths)

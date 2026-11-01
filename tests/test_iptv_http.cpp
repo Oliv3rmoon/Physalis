@@ -114,6 +114,42 @@ TEST(IptvHttpTest, AcceptsARedundantFullFileRangeButNeverAnIgnoredSeek)
         EXPECT_FALSE(iptv::http::ParseStreamRange(headers, 200, -1, &size));
 }
 
+TEST(IptvHttpTest, NamesASegmentsContentTypeWithoutItsParameters)
+{
+    char type[64];
+    EXPECT_TRUE(iptv::http::ContentTypeOf(
+        "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: Video/MP2T; charset=x\r\n", type,
+        sizeof(type)));
+    EXPECT_STREQ(type, "video/mp2t");
+    EXPECT_TRUE(iptv::http::ContentTypeOf("content-type:image/png\n", type, sizeof(type)));
+    EXPECT_STREQ(type, "image/png");
+    EXPECT_FALSE(iptv::http::ContentTypeOf("Content-Length: 4\r\nX-Content-Type: a/b\r\n", type,
+                                           sizeof(type)));
+    EXPECT_STREQ(type, "");
+    char small[6];
+    EXPECT_TRUE(iptv::http::ContentTypeOf("Content-Type: video/mp4\r\n", small, sizeof(small)));
+    EXPECT_STREQ(small, "video");
+}
+
+TEST(IptvHttpTest, GivesOnlyTheExtensionOfASegmentAddress)
+{
+    char extension[12];
+    iptv::http::UrlExtension("http://user:secret@192.0.2.1:8989/live/a/b/1234.TS?token=abc",
+                             extension, sizeof(extension));
+    EXPECT_STREQ(extension, "ts");
+    iptv::http::UrlExtension("https://example.test/seg/chunk-17.m4s#x", extension,
+                             sizeof(extension));
+    EXPECT_STREQ(extension, "m4s");
+    iptv::http::UrlExtension("https://example.test/v1.2/segment", extension, sizeof(extension));
+    EXPECT_STREQ(extension, "");
+    iptv::http::UrlExtension("https://cdn.example.test", extension, sizeof(extension));
+    EXPECT_STREQ(extension, "");
+    iptv::http::UrlExtension("https://example.test/a.b@c", extension, sizeof(extension));
+    EXPECT_STREQ(extension, "");
+    iptv::http::UrlExtension("https://example.test/a.verylongext", extension, sizeof(extension));
+    EXPECT_STREQ(extension, "");
+}
+
 TEST(IptvHttpTest, ExplainsStandardHttpFailures)
 {
     EXPECT_EQ(Describe(iptv::http::Status::http_status_error, 404),
