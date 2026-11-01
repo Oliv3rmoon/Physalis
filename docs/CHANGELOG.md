@@ -5,6 +5,25 @@ What changed in each release of Physalis, newest first. Physalis was called Nigh
 are in `docs/releases/<version>.md`. What changed in ProsperoTV before Nightshade TV is in the
 earlier files there.
 
+## Physalis v1.002.005: MPEG-2 channels
+
+Channels in MPEG-2 play, a channel that can't play says what it is, and a new version is found
+while Physalis stays on. What changed:
+
+- **MPEG-2 channels.** Channels and videos in MPEG-2, as many standard-definition broadcast
+  channels are, now play, and so does the older MPEG-1. The PS5's video decoder has no MPEG-2, so
+  Physalis decodes it on the console's processor, up to 1920 × 1080. Interlaced channels are shown
+  field by field to keep their motion, and a 4:3 or 16:9 picture is shown at the shape the channel
+  gives it. In MPEG-TS, HLS, MP4 and Matroska. With **Stats line** on, it says MPEG2.
+- **Why a channel didn't play.** A live channel whose video Physalis can't decode said only "The
+  channel uses an unsupported media format." It now says what the channel sent, such as "The
+  channel uses an unsupported media format: the programme has no supported video (stream type
+  0x10).", and the failure report saved to USB keeps the stream types.
+- **New versions while it stays on.** Physalis looked for a new version only when it started. It
+  now looks again every four hours while it stays on, only while you're in the menu, never while a
+  channel or video plays: a check that comes due while you watch waits until you're back. A
+  version you put off with **Later** isn't offered again until Physalis is started again.
+
 ## Physalis v1.002.004: long lists, faster
 
 Scroll faster, jump to a letter in On demand, and why a channel didn't open in plain words, as a
