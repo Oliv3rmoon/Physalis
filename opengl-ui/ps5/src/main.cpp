@@ -521,6 +521,9 @@ bool run_menu(ptv::Model &model, ptv::Settings *settings, const LastPlayback &la
         while (!chosen)
         {
             load_wide_faces(); // two flags a frame; a list in another script arrives at any time
+            // A check for a newer release when one is due (every few hours of uptime): begun
+            // only here in the menu, never during playback (tv_update.hpp).
+            tv::start_update_check();
             const std::int64_t now = sys::monotonic_us();
             // Animation time is start-to-start (one full frame), and a hitch
             // must not teleport the animations.

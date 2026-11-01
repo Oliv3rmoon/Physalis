@@ -8,9 +8,12 @@ namespace tv
 {
 
 // Asks GitHub whether Oliv3rmoon/Physalis has a newer release (the build's
-// TV_UPDATE_REPOSITORY), on a thread of its own; only the first call of a launch
-// does anything. The interface hears the
-// answer through ptv::platform::update_take().
+// TV_UPDATE_REPOSITORY), on a thread of its own, when a check is due: the first
+// call of a launch, then once every few hours of uptime
+// (update_kit/update_schedule.h). Call it at launch and from the menu's frame
+// loop, never from playback, so a check never begins during playback. The
+// interface hears the answer through ptv::platform::update_take(), and a version
+// is offered once a launch.
 void start_update_check();
 
 } // namespace tv

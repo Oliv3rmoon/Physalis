@@ -160,8 +160,10 @@ audio decoders, the keyboard) are loaded before access is asked for.
 
 ## Updates
 
-Once per launch the app asks GitHub whether Oliv3rmoon/Physalis has a
-newer release (`ps5/src/update_kit/README.md`): the newest release that is not
+At launch, and again every four hours of uptime while the menu is open, the
+app asks GitHub whether Oliv3rmoon/Physalis has a newer release
+(`ps5/src/update_kit/README.md`; each version is offered once a launch, and
+never over playback): the newest release that is not
 a pre-release, tagged with a content version higher than this one and carrying
 `PPSA99003.zip` and the `SHA256SUMS` that gives its SHA-256. The catalog on
 prosperostore.net is not asked, so ProsperoTV's own releases are never offered.

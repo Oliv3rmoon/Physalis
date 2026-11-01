@@ -9,10 +9,13 @@ Back to the [README](../README.md).
 
 ## Updates
 
-Once per launch Physalis asks GitHub for the newest release of
-[Oliv3rmoon/Physalis](https://github.com/Oliv3rmoon/Physalis/releases) that is not a
-pre-release. When it is newer than the one installed and carries `PPSA99003.zip` and
-`SHA256SUMS`, the app offers **Update now**, **What's new** and **Later**; **Update now** downloads
+At launch, and again every four hours while it stays on, Physalis asks GitHub for the newest
+release of [Oliv3rmoon/Physalis](https://github.com/Oliv3rmoon/Physalis/releases) that is not a
+pre-release. It asks only while the menu is open, never while a channel is playing; a check that
+came due during playback runs when you are back in the menu. When the release is newer than the
+one installed and carries `PPSA99003.zip` and `SHA256SUMS`, the app offers **Update now**,
+**What's new** and **Later**, once: a version you put off with **Later** is not offered again until
+the app is started again, though a newer one is. **Update now** downloads
 the ZIP, checks it against `SHA256SUMS`, and replaces the app's files once it has closed. Your data
 in `/data/prosperotv` is not touched. Like ProsperoTV, it needs filesystem access for this (the
 payload loader on port 9021 that a ShadowMountPlus setup runs); without it, update by copying the
@@ -274,8 +277,10 @@ No PlxNative code is included.
 
 - Control the app from a phone's browser with the
   [phone remote](#phone-remote).
-- Update in place: a newer version is offered at launch with **Update now**,
-  **What's new**, and **Later**, and everything saved is kept.
+- Update in place: a newer version is offered in the menu, at launch or within
+  a few hours of its release while the app stays on, with **Update now**,
+  **What's new**, and **Later** (once a launch, never over playback), and
+  everything saved is kept.
 - Keep all data under `/data/prosperotv`, where an update never touches it; a
   failed refresh leaves the last good catalog untouched.
 - Send a useful problem report: a diagnostic log switch in Settings (off by

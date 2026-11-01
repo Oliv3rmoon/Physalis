@@ -11,6 +11,7 @@ ProsperoEden uses them:
 | `self_update.{h,c}` | the signed-catalog check (Ed25519, sequence guard) and the update job |
 | `self_update_ps5.c` | the console side: libcurl, OpenSSL, the payload loader on port 9021 |
 | `github_release.{h,c}` | Physalis: the check against a GitHub repository's releases, which the app uses instead of the catalog (below) |
+| `update_schedule.{h,c}` | Physalis: when the check asks again (every four hours of uptime, begun only from the menu) and that a version is offered once a launch |
 | `self_update_sha256.{h,c}`, `self_update_protocol.h` | shared with the helper |
 
 `self_update_ps5.c` takes the paths of the helper, of the app's `param.json`
@@ -56,10 +57,17 @@ host check is `opengl-ui/tests/github_release_check.cc`, built and run by
 
 How an update goes:
 
-1. Once per launch, on a thread of its own, the app asks GitHub for the
-   repository's newest release, reads its files and its `SHA256SUMS`, and
-   compares the release's content version with `sce_sys/param.json`.
-2. A newer release is offered. Nothing happens unless the viewer says so.
+1. At launch, and again every four hours of uptime, on a thread of its own,
+   the app asks GitHub for the repository's newest release, reads its files
+   and its `SHA256SUMS`, and compares the release's content version with
+   `sce_sys/param.json`. A check is begun only from the menu, never during
+   playback, and a failed one waits as long as an answered one
+   (`update_schedule.h`; its host check is
+   `opengl-ui/tests/update_schedule_check.cc`, run by
+   `tests/test_github_release.py`).
+2. A newer release is offered, in the menu, once a launch: a version the
+   viewer put off with **Later** is not offered again until the app starts
+   again. Nothing happens unless the viewer says so.
 3. The app downloads the release ZIP from GitHub over HTTPS and streams it to
    the helper, which checks its SHA-256 against the release's `SHA256SUMS` and
    unpacks it beside the app.

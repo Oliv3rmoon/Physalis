@@ -13,6 +13,10 @@
 // the console's payload loader: the helper checks and unpacks the release
 // beside the app, and once the app has closed it replaces the app's files and
 // posts a notification.
+//
+// The check runs at launch and then every few hours of uptime, begun only from
+// the menu and never during playback, and a version is offered once a launch
+// (update_kit/update_schedule.h has the rules and why).
 
 #include "tv_update.hpp"
 
@@ -25,7 +29,9 @@
 #include "update_kit/github_release.h"
 #include "update_kit/self_update.h"
 #include "update_kit/update_check.h"
+#include "update_kit/update_schedule.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -54,8 +60,8 @@ constexpr const char *kName = "Physalis";
 static_assert(sizeof(TV_UPDATE_REPOSITORY) > 1, "a build asks a repository's releases");
 
 std::mutex g_lock;
-bool g_started = false;
-bool g_found = false; // an offer nobody has been told about yet
+update_schedule g_schedule{}; // when a check is due, and the versions offered this launch
+bool g_found = false;         // an offer nobody has been told about yet
 self_update_check_result g_answer = SELF_UPDATE_UNKNOWN;
 self_update_offer g_offer{};
 self_update_job g_job{}; // zero until the first begin, as the kit asks
@@ -161,9 +167,20 @@ void *check(void *)
         result.available[0] != '\0' ? result.available : "-",
         result.version[0] != '\0' ? result.version : "-",
         static_cast<unsigned long long>(result.size));
-    if (state == SELF_UPDATE_AVAILABLE || state == SELF_UPDATE_NOT_INSTALLABLE)
+    const std::lock_guard guard(g_lock);
+    update_schedule_end(&g_schedule);
+    if (state != SELF_UPDATE_AVAILABLE && state != SELF_UPDATE_NOT_INSTALLABLE)
+        return nullptr;
+    // An update under way keeps the offer it is downloading.
+    if (g_begun)
+        log("[TV] update check: %s found while an update is under way",
+            result.available[0] != '\0' ? result.available : "-");
+    // A version the viewer has been offered (and skipped) is not asked about again.
+    else if (!update_schedule_offer(&g_schedule, result.available))
+        log("[TV] update check: %s was offered already this launch",
+            result.available[0] != '\0' ? result.available : "-");
+    else
     {
-        const std::lock_guard guard(g_lock);
         g_answer = state;
         g_offer = result;
         g_found = true;
@@ -203,21 +220,32 @@ namespace tv
 
 void start_update_check()
 {
+    const std::int64_t clock = hui::sys::monotonic_us();
+    const std::uint64_t now = clock > 0 ? static_cast<std::uint64_t>(clock) : 0;
     {
         const std::lock_guard guard(g_lock);
-        if (g_started)
+        // An offer the menu has not taken yet, or an update under way, is left alone.
+        if (g_found || g_begun || !update_schedule_due(&g_schedule, now))
             return;
-        g_started = true;
+        update_schedule_begin(&g_schedule, now);
     }
     pthread_attr_t attributes;
-    if (pthread_attr_init(&attributes) != 0)
-        return;
-    pthread_attr_setstacksize(&attributes, kStackBytes);
-    pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
-    pthread_t thread;
-    if (pthread_create(&thread, &attributes, check, nullptr) != 0)
+    bool started = false;
+    if (pthread_attr_init(&attributes) == 0)
+    {
+        pthread_attr_setstacksize(&attributes, kStackBytes);
+        pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
+        pthread_t thread;
+        started = pthread_create(&thread, &attributes, check, nullptr) == 0;
+        pthread_attr_destroy(&attributes);
+    }
+    if (!started)
+    {
+        // Not again until the next interval.
         log("[TV] update check: the thread could not start");
-    pthread_attr_destroy(&attributes);
+        const std::lock_guard guard(g_lock);
+        update_schedule_end(&g_schedule);
+    }
 }
 
 } // namespace tv
