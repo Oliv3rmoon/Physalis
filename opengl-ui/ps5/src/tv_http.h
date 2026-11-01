@@ -13,7 +13,11 @@
  * defaults, a connection one socket and its TLS session, a request one GET.
  * Ids are small positive numbers; a negative return is a failure. A failed
  * transfer returns -(10000 + the libcurl code): -10028 is a timeout, -10060 a
- * certificate that could not be verified, -10042 an abort. */
+ * certificate that could not be verified, -10042 an abort. A timeout before
+ * the response's headers also says how far it got, in thousands
+ * (iptv::http::CurlStage): -11028 the name was not looked up, -12028 the server
+ * did not accept the connection, -13028 the TLS handshake did not finish,
+ * -14028 the server did not answer. src/iptv_http.cpp puts them in words. */
 
 #ifndef TV_HTTP_H
 #define TV_HTTP_H

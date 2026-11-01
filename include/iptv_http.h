@@ -130,6 +130,29 @@ bool ResponseIndicatesGeographicBlock(const char *response, std::size_t bytes);
 void DescribeFailure(Status status, int http_status, int native_error, const char *response,
                      char *description, std::size_t description_capacity);
 
+// On the console the requests are made with libcurl (opengl-ui/ps5/src/tv_http.h), and a
+// failed one returns -(kCurlFailureBase + libcurl's code): -10028 is libcurl's 28, a timeout.
+// A timeout also says, in thousands, how far the request had got.
+inline constexpr int kCurlFailureBase = 10000;
+inline constexpr int kCurlTimeout = 28; // CURLE_OPERATION_TIMEDOUT
+enum class CurlStage
+{
+    unknown = 0,
+    lookup = 1,  // the server's name had not been looked up
+    connect = 2, // the server had not accepted the connection
+    secure = 3,  // the TLS handshake had not finished
+    answer = 4,  // connected, and the request sent: the server had not answered
+};
+constexpr int CurlFailure(int code, CurlStage stage = CurlStage::unknown)
+{
+    return -(kCurlFailureBase + 1000 * static_cast<int>(stage) + code);
+}
+// libcurl's code in a native error, with the stage of a timeout; 0 when it is not one.
+int CurlCode(int native_error, CurlStage *stage = nullptr);
+// The server was never reached: its name was not found, it refused the connection, or it did
+// not take it in time. Asking the same address again at once is no use.
+bool ServerUnreachable(Status status, int native_error);
+
 Status NetworkInit();
 void NetworkShutdown();
 

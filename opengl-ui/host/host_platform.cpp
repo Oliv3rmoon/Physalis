@@ -40,6 +40,7 @@ struct Network
 {
     std::mutex mutex;
     bool reachable = false;
+    int native_error = -1; // what an unreachable network fails with
     std::string playlist_path;
     std::unordered_map<std::string, std::string> responses;
     std::vector<host::RequestRecord> requests;
@@ -133,6 +134,12 @@ void set_network(bool reachable, const std::string &playlist_path, unsigned dela
     g_network.reachable = reachable;
     g_network.playlist_path = playlist_path;
     g_network.delay_ms = delay_ms;
+}
+
+void set_network_error(int native_error)
+{
+    const std::lock_guard<std::mutex> lock(g_network.mutex);
+    g_network.native_error = native_error;
 }
 
 void set_network_piece(std::size_t bytes)
@@ -234,6 +241,7 @@ void reset()
     set_network(false, "", 0);
     {
         const std::lock_guard<std::mutex> lock(g_network.mutex);
+        g_network.native_error = -1;
         g_network.responses.clear();
         g_network.requests.clear();
         g_network.api.clear();
@@ -473,11 +481,13 @@ iptv::http::FetchResult fetch(const char *url, char *buffer, std::size_t capacit
     record_request(url, headers);
     g_network.fetches.fetch_add(1);
     bool reachable = false;
+    int native_error = -1;
     std::string playlist_path;
     unsigned delay_ms = 0;
     {
         const std::lock_guard<std::mutex> lock(g_network.mutex);
         reachable = g_network.reachable;
+        native_error = g_network.native_error;
         playlist_path = g_network.playlist_path;
         if (url && g_network.responses.contains(url))
             playlist_path = g_network.responses.at(url);
@@ -493,7 +503,7 @@ iptv::http::FetchResult fetch(const char *url, char *buffer, std::size_t capacit
         sleep_ms(5);
     }
     if (!reachable)
-        return {iptv::http::Status::request_failed, 0, 0, -1};
+        return {iptv::http::Status::request_failed, 0, 0, native_error};
     std::FILE *file = std::fopen(playlist_path.c_str(), "rb");
     if (file == nullptr)
         return {iptv::http::Status::http_status_error, 0, 404, 0};
@@ -515,12 +525,14 @@ iptv::http::FetchResult fetch_list(const char *url, const iptv::http::ListSink &
     record_request(url, headers);
     g_network.fetches.fetch_add(1);
     bool reachable = false;
+    int native_error = -1;
     std::string playlist_path;
     unsigned delay_ms = 0;
     std::size_t piece_bytes = 0;
     {
         const std::lock_guard<std::mutex> lock(g_network.mutex);
         reachable = g_network.reachable;
+        native_error = g_network.native_error;
         playlist_path = g_network.playlist_path;
         if (url && g_network.responses.contains(url))
             playlist_path = g_network.responses.at(url);
@@ -539,7 +551,7 @@ iptv::http::FetchResult fetch_list(const char *url, const iptv::http::ListSink &
         sleep_ms(5);
     }
     if (!reachable)
-        return {iptv::http::Status::request_failed, 0, 0, -1};
+        return {iptv::http::Status::request_failed, 0, 0, native_error};
     std::FILE *file = std::fopen(playlist_path.c_str(), "rb");
     if (file == nullptr)
         return {iptv::http::Status::http_status_error, 0, 404, 0};

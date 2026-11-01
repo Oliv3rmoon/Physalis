@@ -96,4 +96,35 @@ const char *tr(const char *english)
     const auto text = found->second[index - 1];
     return text && *text ? text : english;
 }
+
+std::string tr_reason(std::string_view english)
+{
+    std::string_view text = english;
+    const bool stop = !text.empty() && text.back() == '.';
+    if (stop)
+        text.remove_suffix(1);
+    const auto colon = text.find(": ");
+    if (colon == std::string_view::npos)
+        return std::string(english);
+    const std::string context(text.substr(0, colon));
+    std::string_view what = text.substr(colon + 2);
+    // The code at the end, "(curl 28)", is the same in every language.
+    std::string_view code;
+    if (const auto open = what.rfind(" (");
+        open != std::string_view::npos && !what.empty() && what.back() == ')')
+    {
+        code = what.substr(open);
+        what = what.substr(0, open);
+    }
+    const std::string happened(what);
+    const std::string_view context_text = tr(context.c_str());
+    const std::string_view happened_text = tr(happened.c_str());
+    if (context_text == context || happened_text == happened)
+        return std::string(english);
+    std::string result(context_text);
+    result.append(": ").append(happened_text).append(code);
+    if (stop)
+        result += '.';
+    return result;
+}
 } // namespace ptv

@@ -4,7 +4,9 @@
 
 #include "tv/category_path.hpp"
 #include "tv/channel_text.hpp"
+#include "tv/i18n.hpp"
 #include "host_platform.hpp"
+#include "iptv_http.h"
 #include "large_list.hpp"
 #include "tv/model.hpp"
 #include "tv/playback_osd.hpp"
@@ -274,6 +276,75 @@ TEST_F(ModelTest, OfflineWithNothingSavedSaysWhyAndCanRetry)
     EXPECT_FALSE(model.catalog_failed());
     ASSERT_TRUE(settle(model));
     EXPECT_TRUE(model.has_catalog());
+    model.close();
+}
+
+TEST_F(ModelTest, AListThatCouldNotBeFetchedSaysWhyInWords)
+{
+    using iptv::http::CurlFailure;
+    using iptv::http::CurlStage;
+    const std::pair<int, const char *> cases[] = {
+        {CurlFailure(28), "The server took too long to answer."},
+        {CurlFailure(28, CurlStage::connect), "The server could not be reached in time."},
+        {CurlFailure(28, CurlStage::lookup), "The server could not be reached in time."},
+        {CurlFailure(28, CurlStage::answer), "The server took too long to answer."},
+        {CurlFailure(6), "The server's name could not be found."},
+        {CurlFailure(7), "The server refused the connection."},
+        {CurlFailure(35), "The secure connection to the server failed."},
+        {CurlFailure(60), "The server's certificate was rejected."},
+        {-1, "The server could not be reached (code -1)."},
+    };
+    host::set_network(false, "");
+    for (const auto &[native, expected] : cases)
+    {
+        SCOPED_TRACE(native);
+        host::set_network_error(native);
+        ptv::Model model(dir_);
+        ASSERT_TRUE(model.open());
+        ASSERT_TRUE(settle(model));
+        ASSERT_TRUE(model.catalog_failed());
+        EXPECT_EQ(model.catalog_error(), expected);
+        model.close();
+    }
+    ptv::set_interface_language(4); // German
+    host::set_network_error(CurlFailure(28, CurlStage::connect));
+    ptv::Model model(dir_);
+    ASSERT_TRUE(model.open());
+    ASSERT_TRUE(settle(model));
+    EXPECT_EQ(model.catalog_error(), "Der Server war nicht rechtzeitig erreichbar.");
+    model.close();
+    ptv::set_interface_language(0);
+}
+
+TEST_F(ModelTest, AChannelThatFailedSaysWhyInTheInterfaceLanguage)
+{
+    ptv::Model model(dir_);
+    load(model);
+    char reason[160];
+    iptv::http::DescribeFailure(iptv::http::Status::request_failed, 0,
+                                iptv::http::CurlFailure(28, iptv::http::CurlStage::connect),
+                                nullptr, reason, sizeof(reason));
+    // As the player writes it (src/iptv_player.cpp, SetRequestFailure).
+    const std::string detail = std::string("Channel request failed: ") + reason + ".";
+    const auto channel = model.channel(model.visible(0));
+    const std::string id(channel.id), name(channel.name);
+    model.report_playback_failure(id.c_str(), name.c_str(), -6, 1, detail.c_str());
+    ASSERT_NE(model.failure(), nullptr);
+    EXPECT_EQ(model.failure()->reason,
+              "Channel request failed: the channel's server could not be reached in time; it "
+              "may be offline or blocked on this network (curl 28).");
+    ptv::set_interface_language(6); // Portuguese
+    model.report_playback_failure(id.c_str(), name.c_str(), -6, 1, detail.c_str());
+    EXPECT_EQ(model.failure()->reason,
+              "Falha na solicitação do canal: não foi possível acessar o servidor do canal a "
+              "tempo; ele pode estar offline ou bloqueado nesta rede (curl 28).");
+    // A reason without a translation stays as the player wrote it.
+    model.report_playback_failure(
+        id.c_str(), name.c_str(), -7, 1,
+        "Channel request failed: stream is offline or no longer exists (HTTP 404).");
+    EXPECT_EQ(model.failure()->reason,
+              "Channel request failed: stream is offline or no longer exists (HTTP 404).");
+    ptv::set_interface_language(0);
     model.close();
 }
 

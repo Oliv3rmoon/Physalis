@@ -2,12 +2,15 @@
 // Copyright (C) 2026 BlackBearReloaded
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "tv/i18n.hpp"
+#include "iptv_http.h"
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <array>
 #include <set>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -139,5 +142,48 @@ TEST(InterfaceLanguage, EveryEntryHasAllTranslationsAndUnknownTextSurvives)
         EXPECT_STREQ(ptv::tr("Provider Channel 1"), "Provider Channel 1");
     }
     ptv::set_console_language(1);
+}
+
+// Every connection failure the player can describe (src/iptv_http.cpp) reads whole in each
+// language: the request it was, what happened, and libcurl's code as it is.
+TEST(InterfaceLanguage, EveryConnectionFailureOfThePlayerIsTranslated)
+{
+    using iptv::http::CurlFailure;
+    using iptv::http::CurlStage;
+    std::vector<std::pair<int, int>> failures; // native error, libcurl's code
+    for (const int code : {1, 3, 6, 7, 8, 27, 35, 42, 47, 52, 55, 56, 60, 77, 99})
+        failures.emplace_back(CurlFailure(code), code);
+    for (const auto stage : {CurlStage::unknown, CurlStage::lookup, CurlStage::connect,
+                             CurlStage::secure, CurlStage::answer})
+        failures.emplace_back(CurlFailure(28, stage), 28);
+    for (const char *context :
+         {"Channel request failed", "Playlist request failed", "Channel segment request failed"})
+        for (const auto &[native, code] : failures)
+        {
+            char reason[160];
+            iptv::http::DescribeFailure(iptv::http::Status::request_failed, 0, native, nullptr,
+                                        reason, sizeof(reason));
+            const std::string detail = std::string(context) + ": " + reason + ".";
+            const std::string tail = " (curl " + std::to_string(code) + ").";
+            ptv::set_interface_language(1);
+            EXPECT_EQ(ptv::tr_reason(detail), detail);
+            for (unsigned language = 2; language <= 9; ++language)
+            {
+                ptv::set_interface_language(language);
+                const std::string shown = ptv::tr_reason(detail);
+                EXPECT_NE(shown, detail) << language << ' ' << detail;
+                EXPECT_EQ(shown.rfind(std::string(ptv::tr(context)) + ": ", 0), 0u) << shown;
+                ASSERT_GE(shown.size(), tail.size());
+                EXPECT_EQ(shown.substr(shown.size() - tail.size()), tail) << shown;
+            }
+        }
+    // Whatever has no translation is left as the player wrote it.
+    ptv::set_interface_language(4);
+    for (const char *other : {"Channel request failed: stream is offline or no longer exists "
+                              "(HTTP 404).",
+                              "The channel stalled without producing video for 15 seconds.",
+                              "Unknown request failed: connection failed (curl 99).", "", ":"})
+        EXPECT_EQ(ptv::tr_reason(other), other);
+    ptv::set_interface_language(0);
 }
 } // namespace

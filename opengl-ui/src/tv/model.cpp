@@ -125,6 +125,29 @@ bool matches_filters(const iptv::ChannelView &channel, const std::string &countr
     return true;
 }
 
+// A connection libcurl could not make (iptv_http.h), in words; null for the rest.
+const char *connection_problem(int native_error)
+{
+    iptv::http::CurlStage stage = iptv::http::CurlStage::unknown;
+    switch (iptv::http::CurlCode(native_error, &stage))
+    {
+    case 6: // CURLE_COULDNT_RESOLVE_HOST
+        return "The server's name could not be found.";
+    case 7: // CURLE_COULDNT_CONNECT
+        return "The server refused the connection.";
+    case iptv::http::kCurlTimeout:
+        return stage == iptv::http::CurlStage::lookup || stage == iptv::http::CurlStage::connect
+                   ? "The server could not be reached in time."
+                   : "The server took too long to answer.";
+    case 35: // CURLE_SSL_CONNECT_ERROR
+        return "The secure connection to the server failed.";
+    case 60: // CURLE_PEER_FAILED_VERIFICATION
+        return "The server's certificate was rejected.";
+    default:
+        return nullptr;
+    }
+}
+
 // Why a download failed, in words a person can act on.
 std::string fetch_problem(iptv::http::Status network, const iptv::http::FetchResult &fetch,
                           bool account, iptv::XtreamStatus account_status,
@@ -163,6 +186,10 @@ std::string fetch_problem(iptv::http::Status network, const iptv::http::FetchRes
         return tr("The server sent the app in a circle.");
     case Status::cancelled:
         return tr("The download was stopped.");
+    case Status::request_failed:
+        if (const char *problem = connection_problem(fetch.native_error))
+            return tr(problem);
+        [[fallthrough]];
     default:
         std::snprintf(text, sizeof(text), tr("The server could not be reached (code %d)."),
                       fetch.native_error);
@@ -1108,8 +1135,9 @@ void Model::report_playback_failure(const char *channel_id, const char *channel_
     failure_.channel_id = channel_id != nullptr ? channel_id : "";
     failure_.channel_name =
         channel_name != nullptr && *channel_name != '\0' ? channel_name : tr("this channel");
-    failure_.reason =
-        detail != nullptr && *detail != '\0' ? detail : tr("The channel may be offline right now.");
+    failure_.reason = detail != nullptr && *detail != '\0'
+                          ? tr_reason(detail)
+                          : std::string(tr("The channel may be offline right now."));
     failure_.attempts = attempts;
     failure_.can_retry = catalog_.Find(failure_.channel_id) != iptv::Catalog::npos;
     has_failure_ = true;

@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <cstring>
 #include <string>
 
@@ -127,6 +128,85 @@ TEST(IptvHttpTest, PreservesNativeConnectionErrorForLogsAndUi)
 {
     EXPECT_EQ(Describe(iptv::http::Status::request_failed, 0, -42),
               "connection failed (native error 0xFFFFFFD6)");
+    // The system library's own errors are not libcurl's.
+    EXPECT_EQ(
+        Describe(iptv::http::Status::request_failed, 0, static_cast<int>(UINT32_C(0x80431100))),
+        "connection failed (native error 0x80431100)");
+}
+
+TEST(IptvHttpTest, ReadsLibcurlCodesAndTheStageOfATimeout)
+{
+    using iptv::http::CurlCode;
+    using iptv::http::CurlFailure;
+    using iptv::http::CurlStage;
+    CurlStage stage = CurlStage::answer;
+    // 0xFFFFD8D4, as a tester saw it: libcurl's 28 with no stage.
+    EXPECT_EQ(CurlCode(-10028, &stage), 28);
+    EXPECT_EQ(stage, CurlStage::unknown);
+    EXPECT_EQ(CurlFailure(28), static_cast<int>(UINT32_C(0xFFFFD8D4)));
+    EXPECT_EQ(CurlFailure(28, CurlStage::connect), -12028);
+    for (const auto expected :
+         {CurlStage::lookup, CurlStage::connect, CurlStage::secure, CurlStage::answer})
+    {
+        EXPECT_EQ(CurlCode(CurlFailure(28, expected), &stage), 28);
+        EXPECT_EQ(stage, expected);
+    }
+    EXPECT_EQ(CurlCode(-10060, &stage), 60);
+    EXPECT_EQ(stage, CurlStage::unknown);
+    // Only a timeout has a stage; nothing outside libcurl's range is read as one.
+    for (const int other : {0, -1, -42, -10000, -12060, -15028, -9999, 10028,
+                            static_cast<int>(UINT32_C(0x80431100)), INT32_MIN})
+        EXPECT_EQ(CurlCode(other), 0) << other;
+}
+
+TEST(IptvHttpTest, PutsConnectionFailuresInPlainWords)
+{
+    using iptv::http::CurlFailure;
+    using iptv::http::CurlStage;
+    const auto failed = [](int native)
+    { return Describe(iptv::http::Status::request_failed, 0, native); };
+    EXPECT_EQ(failed(-10028), "the channel's server did not answer in time (curl 28)");
+    EXPECT_EQ(failed(CurlFailure(28, CurlStage::lookup)),
+              "looking up the channel's server took too long (curl 28)");
+    EXPECT_EQ(failed(CurlFailure(28, CurlStage::connect)),
+              "the channel's server could not be reached in time; it may be offline or blocked "
+              "on this network (curl 28)");
+    EXPECT_EQ(failed(CurlFailure(28, CurlStage::secure)),
+              "the secure connection to the channel's server timed out (curl 28)");
+    EXPECT_EQ(failed(CurlFailure(28, CurlStage::answer)),
+              "the channel's server took the request but did not answer in time (curl 28)");
+    EXPECT_EQ(failed(CurlFailure(6)), "the channel's server could not be found (curl 6)");
+    EXPECT_EQ(failed(CurlFailure(7)), "the channel's server refused the connection (curl 7)");
+    EXPECT_EQ(failed(CurlFailure(60)), "the channel's server certificate was rejected (curl 60)");
+    EXPECT_EQ(failed(CurlFailure(35)),
+              "the secure connection to the channel's server failed (curl 35)");
+    EXPECT_EQ(failed(CurlFailure(56)), "the connection to the channel's server was cut (curl 56)");
+    EXPECT_EQ(failed(CurlFailure(99)), "connection failed (curl 99)");
+    // What the player shows fits its message with the longest context in front.
+    char text[160];
+    iptv::http::DescribeFailure(iptv::http::Status::request_failed, 0,
+                                CurlFailure(28, CurlStage::connect), nullptr, text, sizeof(text));
+    EXPECT_LT(std::strlen("Channel segment request failed: .") + std::strlen(text), 160u);
+}
+
+TEST(IptvHttpTest, AServerThatCannotBeReachedIsNotAskedAgain)
+{
+    using iptv::http::CurlFailure;
+    using iptv::http::CurlStage;
+    using iptv::http::ServerUnreachable;
+    using iptv::http::Status;
+    EXPECT_TRUE(ServerUnreachable(Status::request_failed, CurlFailure(6)));
+    EXPECT_TRUE(ServerUnreachable(Status::request_failed, CurlFailure(7)));
+    EXPECT_TRUE(ServerUnreachable(Status::request_failed, CurlFailure(28, CurlStage::lookup)));
+    EXPECT_TRUE(ServerUnreachable(Status::request_failed, CurlFailure(28, CurlStage::connect)));
+    // A server that answered, or a timeout whose stage is not known, is asked again.
+    EXPECT_FALSE(ServerUnreachable(Status::request_failed, CurlFailure(28)));
+    EXPECT_FALSE(ServerUnreachable(Status::request_failed, CurlFailure(28, CurlStage::secure)));
+    EXPECT_FALSE(ServerUnreachable(Status::request_failed, CurlFailure(28, CurlStage::answer)));
+    EXPECT_FALSE(ServerUnreachable(Status::request_failed, CurlFailure(60)));
+    EXPECT_FALSE(ServerUnreachable(Status::request_failed, -42));
+    EXPECT_FALSE(ServerUnreachable(Status::http_status_error, CurlFailure(7)));
+    EXPECT_FALSE(ServerUnreachable(Status::read_failed, CurlFailure(28, CurlStage::connect)));
 }
 
 } // namespace

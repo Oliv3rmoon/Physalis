@@ -8,6 +8,7 @@
 
 #include "tv_http.h"
 
+#include "iptv_http.h"
 #include "update_kit/console_curl.h"
 
 #include <curl/curl.h>
@@ -36,7 +37,7 @@ constexpr int kRequestBase = 0x3000;
 // What a request holds of a body nobody has read yet before the transfer is
 // told to wait: a few seconds of a 4K channel.
 constexpr std::size_t kHighWater = 8u * 1024u * 1024u;
-constexpr int kErrorBase = 10000;
+constexpr int kErrorBase = iptv::http::kCurlFailureBase;
 
 struct Settings
 {
@@ -278,6 +279,27 @@ int failure(CURLcode code)
     return -(kErrorBase + static_cast<int>(code));
 }
 
+// A request that ran out of time, with how far it had got: the name, the connection, the TLS
+// handshake (https only), or the answer.
+int timed_out(const Request *request)
+{
+    using iptv::http::CurlStage;
+    curl_off_t looked_up = 0, connected = 0, secured = 0;
+    char *scheme = nullptr;
+    CURL *easy = request->easy;
+    if (easy == nullptr || curl_easy_getinfo(easy, CURLINFO_NAMELOOKUP_TIME_T, &looked_up) ||
+        curl_easy_getinfo(easy, CURLINFO_CONNECT_TIME_T, &connected) ||
+        curl_easy_getinfo(easy, CURLINFO_APPCONNECT_TIME_T, &secured))
+        return iptv::http::CurlFailure(CURLE_OPERATION_TIMEDOUT);
+    (void)curl_easy_getinfo(easy, CURLINFO_SCHEME, &scheme);
+    const bool https = scheme != nullptr && strcasecmp(scheme, "https") == 0;
+    const CurlStage stage = looked_up == 0          ? CurlStage::lookup
+                            : connected == 0        ? CurlStage::connect
+                            : https && secured == 0 ? CurlStage::secure
+                                                    : CurlStage::answer;
+    return iptv::http::CurlFailure(CURLE_OPERATION_TIMEDOUT, stage);
+}
+
 long to_ms(std::uint32_t usec)
 {
     return static_cast<long>(usec / 1000U);
@@ -502,17 +524,27 @@ int tv_http_send(int id, const void *, std::size_t)
         if (request->aborted.load() || interrupted())
             return failure(CURLE_ABORTED_BY_CALLBACK);
         if (now_ms() > deadline)
-            return failure(CURLE_OPERATION_TIMEDOUT);
+        {
+            const int code = timed_out(request);
+            char line[200];
+            std::snprintf(line, sizeof(line), "[ProsperoTV][http] %s: no answer in %lld ms (%d)\n",
+                          request->url.substr(0, 96).c_str(),
+                          static_cast<long long>(connect_ms + request->settings.receive_ms), code);
+            say(line);
+            return code;
+        }
         drive(request, 10);
     }
     if (request->done && request->result != CURLE_OK)
     {
+        const int code = request->result == CURLE_OPERATION_TIMEDOUT ? timed_out(request)
+                                                                     : failure(request->result);
         char line[400];
-        std::snprintf(line, sizeof(line), "[ProsperoTV][http] %s: %s (%s)\n",
+        std::snprintf(line, sizeof(line), "[ProsperoTV][http] %s: %s (%s) (%d)\n",
                       request->url.substr(0, 96).c_str(), curl_easy_strerror(request->result),
-                      request->error);
+                      request->error, code);
         say(line);
-        return failure(request->result);
+        return code;
     }
     return 0;
 }

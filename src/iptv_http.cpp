@@ -651,6 +651,97 @@ bool ResponseIndicatesGeographicBlock(const char *response, std::size_t bytes)
     return false;
 }
 
+int CurlCode(int native_error, CurlStage *stage)
+{
+    if (stage)
+        *stage = CurlStage::unknown;
+    // Kept in int: -INT_MIN would overflow, and the system library's own errors
+    // (0x80xxxxxx) are far below this range.
+    if (native_error >= -kCurlFailureBase || native_error < -(kCurlFailureBase + 5000))
+        return 0;
+    const int rest = -native_error - kCurlFailureBase;
+    const int code = rest % 1000, step = rest / 1000;
+    if (code <= 0 || code >= 1000 || (step != 0 && code != kCurlTimeout))
+        return 0;
+    if (stage)
+        *stage = static_cast<CurlStage>(step);
+    return code;
+}
+
+bool ServerUnreachable(Status status, int native_error)
+{
+    if (status != Status::request_failed)
+        return false;
+    CurlStage stage = CurlStage::unknown;
+    switch (CurlCode(native_error, &stage))
+    {
+    case 6: // CURLE_COULDNT_RESOLVE_HOST
+    case 7: // CURLE_COULDNT_CONNECT
+        return true;
+    case kCurlTimeout:
+        return stage == CurlStage::lookup || stage == CurlStage::connect;
+    default:
+        return false;
+    }
+}
+
+namespace
+{
+// What went wrong with a connection libcurl could not make, in words. The texts are
+// also the keys of their translations in the interface (opengl-ui/src/tv).
+const char *ConnectionProblem(int code, CurlStage stage)
+{
+    switch (code)
+    {
+    case 1: // CURLE_UNSUPPORTED_PROTOCOL
+        return "unsupported stream URL";
+    case 3: // CURLE_URL_MALFORMAT
+        return "the stream address is not valid";
+    case 6: // CURLE_COULDNT_RESOLVE_HOST
+        return "the channel's server could not be found";
+    case 7: // CURLE_COULDNT_CONNECT
+        return "the channel's server refused the connection";
+    case 8: // CURLE_WEIRD_SERVER_REPLY
+        return "the channel's server did not answer in HTTP";
+    case 27: // CURLE_OUT_OF_MEMORY
+        return "not enough memory for the connection";
+    case kCurlTimeout:
+        switch (stage)
+        {
+        case CurlStage::lookup:
+            return "looking up the channel's server took too long";
+        case CurlStage::connect:
+            return "the channel's server could not be reached in time; it may be offline or "
+                   "blocked on this network";
+        case CurlStage::secure:
+            return "the secure connection to the channel's server timed out";
+        case CurlStage::answer:
+            return "the channel's server took the request but did not answer in time";
+        case CurlStage::unknown:
+            break;
+        }
+        return "the channel's server did not answer in time";
+    case 35: // CURLE_SSL_CONNECT_ERROR
+        return "the secure connection to the channel's server failed";
+    case 42: // CURLE_ABORTED_BY_CALLBACK
+        return "request was cancelled";
+    case 47: // CURLE_TOO_MANY_REDIRECTS
+        return "the channel's server redirected too many times";
+    case 52: // CURLE_GOT_NOTHING
+        return "the channel's server closed the connection without answering";
+    case 55: // CURLE_SEND_ERROR
+    case 56: // CURLE_RECV_ERROR
+        return "the connection to the channel's server was cut";
+    case 60: // CURLE_PEER_FAILED_VERIFICATION
+        return "the channel's server certificate was rejected";
+    case 77: // CURLE_SSL_CACERT_BADFILE
+        return "the console's list of certificate authorities could not be read";
+    default:
+        return nullptr;
+    }
+}
+} // namespace
+
 void DescribeFailure(Status status, int http_status, int native_error, const char *response,
                      char *description, std::size_t description_capacity)
 {
@@ -730,13 +821,21 @@ void DescribeFailure(Status status, int http_status, int native_error, const cha
         std::snprintf(description, description_capacity, "network service unavailable");
         break;
     case Status::request_failed:
-        if (native_error != 0)
+    {
+        CurlStage stage = CurlStage::unknown;
+        const int code = CurlCode(native_error, &stage);
+        if (const char *problem = ConnectionProblem(code, stage))
+            std::snprintf(description, description_capacity, "%s (curl %d)", problem, code);
+        else if (code != 0)
+            std::snprintf(description, description_capacity, "connection failed (curl %d)", code);
+        else if (native_error != 0)
             std::snprintf(description, description_capacity,
                           "connection failed (native error 0x%08X)",
                           static_cast<unsigned>(native_error));
         else
             std::snprintf(description, description_capacity, "connection failed");
         break;
+    }
     case Status::response_too_large:
         std::snprintf(description, description_capacity, "provider response is too large");
         break;

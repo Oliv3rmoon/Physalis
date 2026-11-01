@@ -3023,7 +3023,9 @@ int RunDirect(const char *url, StreamRunner *runner, std::uint8_t *read_buffer, 
             // The viewer left while the channel was still being asked for.
             if (runner->PlaybackStopRequested())
                 return 1;
-            if (++attempt == 3u)
+            // A server that could not be reached is not asked again: each try would
+            // wait out the connection's whole limit before saying the same.
+            if (++attempt == 3u || iptv::http::ServerUnreachable(status, request.native_error))
             {
                 SetRequestFailure("Channel request failed", status, request.http_status,
                                   request.native_error, request.error_response);
