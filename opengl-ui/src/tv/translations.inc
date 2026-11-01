@@ -179,6 +179,7 @@
 {"Browse Live TV", {"Explorar TV en directo", "Parcourir la TV en direct", "Live-TV durchsuchen", "Esplora TV in diretta", "Explorar TV ao vivo", "Live-tv bekijken"}},
 {"Choose a list", {"Elegir lista", "Choisir une liste", "Liste auswählen", "Scegli una lista", "Escolher lista", "Lijst kiezen"}},
 {"Jump to a letter", {"Ir a una letra", "Aller à une lettre", "Zu einem Buchstaben springen", "Vai a una lettera", "Ir para uma letra", "Naar een letter springen"}},
+{"List", {"Lista", "Liste", "Liste", "Elenco", "Lista", "Lijst"}},
 {"Your favorite channels", {"Tus canales favoritos", "Vos chaînes favorites", "Deine Lieblingssender", "I tuoi canali preferiti", "Seus canais favoritos", "Je favoriete zenders"}},
 {"Recent channels", {"Canales recientes", "Chaînes récentes", "Zuletzt gesehene Sender", "Canali recenti", "Canais recentes", "Recente zenders"}},
 {"Choose a channel to watch again.", {"Elige un canal para volver a verlo.", "Choisissez une chaîne à revoir.", "Wähle einen Sender zum erneuten Ansehen.", "Scegli un canale da guardare di nuovo.", "Escolha um canal para assistir novamente.", "Kies een zender om opnieuw te bekijken."}},

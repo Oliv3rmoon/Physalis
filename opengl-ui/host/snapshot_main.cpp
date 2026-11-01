@@ -333,6 +333,9 @@ const Step kWalk[] = {
     move(Direction::down),
     press(Action::confirm, 0.5f, "57-vod-child-categories"),
     press(Action::confirm, 1.2f, "58-vod-movies"),
+    // ---- the letters of On demand: Right from the list ----
+    move(Direction::right, 0.7f, "67-vod-letters"),
+    move(Direction::left, 0.3f),
     press(Action::back),
     press(Action::back),
     press(Action::back),

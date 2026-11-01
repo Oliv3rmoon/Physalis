@@ -7,6 +7,7 @@
 #include "tv/draw.hpp"
 #include <chrono>
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <set>
 #include <cstdlib>
@@ -21,9 +22,61 @@ constexpr int kRows = 7;
 constexpr const char *kSorts[] = {"Recently added", "Title A-Z", "Title Z-A", "Newest year",
                                   "Highest rating"};
 constexpr int kSortCount = static_cast<int>(std::size(kSorts));
+constexpr int kTitleOrder = 1; // "Title A-Z"
+// The letters stand in a column between the list and the artwork, as on Live TV.
+constexpr float kLetterX = kMargin + 1060.0f + 52.0f;
+constexpr float kLetterTop = 318.0f; // the centre of '#'
+constexpr float kLetterPitch = 18.5f;
+constexpr float kLetterText = 15.0f;
 } // namespace
+bool VodScreen::has_letters() const
+{
+    const auto kind = shared_.model.view.vod_kind;
+    return (kind == static_cast<int>(VodKind::movies) ||
+            kind == static_cast<int>(VodKind::series)) &&
+           std::any_of(letter_starts_.begin(), letter_starts_.end(),
+                       [](int start) { return start >= 0; });
+}
+int VodScreen::current_letter() const
+{
+    const auto *row = focused();
+    if (row && !row->key.empty() && letter_starts_[letter_of_key(row->key)] >= 0)
+        return letter_of_key(row->key);
+    for (int letter = 0; letter < kLetterCount; ++letter)
+        if (letter_starts_[letter] >= 0)
+            return letter;
+    return 0;
+}
+void VodScreen::enter_letters()
+{
+    auto &view = shared_.model.view;
+    const auto row = *focused();
+    // A letter leads to one run of titles only in title order: from the newest first (or
+    // any other order) the list turns to Title A-Z, and the focus stays where it was.
+    if (view.vod_sort != kTitleOrder)
+    {
+        view.vod_sort = kTitleOrder;
+        sync();
+        const auto kept = std::find_if(rows_.begin(), rows_.end(),
+                                       [&](const Row &candidate)
+                                       {
+                                           return candidate.kind == row.kind &&
+                                                  candidate.item == row.item &&
+                                                  candidate.category == row.category;
+                                       });
+        if (kept != rows_.end())
+            view.vod_focus = static_cast<int>(kept - rows_.begin());
+    }
+    if (focused()->key.empty() ||
+        (focused()->kind == Kind::category && shared_.model.category_hidden(focused()->category)))
+        view.vod_focus = letter_starts_[current_letter()];
+    top_ = std::clamp(view.vod_focus, 0, std::max(0, static_cast<int>(rows_.size()) - kRows));
+    page_dir_ = 0;
+    letters_focused_ = true;
+}
 void VodScreen::enter()
 {
+    letters_focused_ = false;
     const auto &view = shared_.model.view;
     if (view.vod_kind >= 0)
         shared_.model.vod().select(static_cast<VodKind>(view.vod_kind), view.vod_series);
@@ -148,6 +201,40 @@ void VodScreen::sync()
         rows_.insert(rows_.end(), std::make_move_iterator(items.begin()),
                      std::make_move_iterator(items.end()));
     }
+    // The letters of Live TV (sort_key): accents put aside, digits and other scripts under '#'.
+    // In title order the categories and titles are one alphabet, so that each letter is one
+    // run; Browse all and Continue stay above it.
+    letter_starts_.fill(-1);
+    if (view.vod_kind == static_cast<int>(VodKind::movies) ||
+        view.vod_kind == static_cast<int>(VodKind::series))
+    {
+        for (auto &row : rows_)
+            if (row.kind == Kind::item || row.kind == Kind::category)
+            {
+                iptv::ChannelView named{};
+                named.name = row.text;
+                row.key = sort_key(named);
+            }
+        if (view.vod_sort == kTitleOrder)
+            std::stable_sort(rows_.begin(), rows_.end(),
+                             [](const Row &left, const Row &right)
+                             {
+                                 if (left.key.empty() || right.key.empty())
+                                     return left.key.empty() && !right.key.empty();
+                                 return left.key < right.key;
+                             });
+        // A hidden category is listed, to be shown again, but no letter leads to it.
+        for (int i = 0; i < static_cast<int>(rows_.size()); ++i)
+            if (!rows_[i].key.empty() &&
+                (rows_[i].kind != Kind::category || !model.category_hidden(rows_[i].category)))
+            {
+                auto &start = letter_starts_[letter_of_key(rows_[i].key)];
+                if (start < 0)
+                    start = i;
+            }
+    }
+    if (!has_letters())
+        letters_focused_ = false;
     if (details_open_)
     {
         const auto found = std::find_if(
@@ -202,6 +289,11 @@ bool VodScreen::back()
         filters_open_ = false;
         return true;
     }
+    if (letters_focused_)
+    {
+        letters_focused_ = false;
+        return true;
+    }
     if (!view.vod_query.empty())
         view.vod_query.clear();
     else if (view.vod_all)
@@ -253,8 +345,37 @@ void VodScreen::handle(const InputFrame &input, ui::Feedback &feedback)
     }
     if (input.is_pressed(Action::r3) && view.vod_kind >= 0)
     {
+        letters_focused_ = false;
         filters_open_ = true;
         filter_focus_ = 0;
+        return;
+    }
+    // On the letters: up and down go to the next letter that has titles, Left or Cross back
+    // to the list (Circle too, in back()).
+    if (letters_focused_)
+    {
+        if (input.nav == Direction::left || input.is_pressed(Action::confirm))
+        {
+            letters_focused_ = false;
+            feedback.play(audio::Cue::focus, 0.97f);
+        }
+        else if (input.nav == Direction::up || input.nav == Direction::down)
+        {
+            const int step = input.nav == Direction::down ? 1 : -1;
+            int letter = current_letter() + step;
+            while (letter >= 0 && letter < kLetterCount && letter_starts_[letter] < 0)
+                letter += step;
+            if (letter >= 0 && letter < kLetterCount)
+            {
+                view.vod_focus = letter_starts_[letter];
+                // The letter's first title goes to the top, so that its others follow it.
+                top_ = std::clamp(view.vod_focus, 0,
+                                  std::max(0, static_cast<int>(rows_.size()) - kRows));
+                feedback.play(audio::Cue::focus, 1.1f - 0.008f * static_cast<float>(letter));
+            }
+            else if (!input.nav_repeat)
+                feedback.play(audio::Cue::error, 1.0f, 0.0f, 0.6f);
+        }
         return;
     }
     if (input.is_pressed(Action::west) && focused() && focused()->kind == Kind::item)
@@ -288,6 +409,13 @@ void VodScreen::handle(const InputFrame &input, ui::Feedback &feedback)
     if (input.is_pressed(Action::north) && view.vod_kind >= 0)
     {
         model.ask_vod_query();
+        return;
+    }
+    // Only a press of its own leads onto the letters, as on Live TV.
+    if (input.nav == Direction::right && !input.nav_repeat && has_letters())
+    {
+        enter_letters();
+        feedback.play(audio::Cue::focus, 1.03f);
         return;
     }
     const auto old = view.vod_focus;
@@ -335,6 +463,7 @@ void VodScreen::handle(const InputFrame &input, ui::Feedback &feedback)
         top_ = view.vod_focus - kRows + 1;
     if (!input.is_pressed(Action::confirm) || !focused() || !model.vod().available())
         return;
+    letters_focused_ = false;
     const auto row = *focused();
     if (row.count == 0)
         return;
@@ -496,23 +625,70 @@ void VodScreen::draw(ui::Canvas &canvas) const
                      76, tone::accent, gfx::Align::center);
         }
         const auto &category_face = face_for(fonts, fonts.regular, item.group_title);
-        ui::paragraph(draw, category_face, readable(category_face, item.group_title), 1180, 840, 24,
-                      600, 34, theme.text_muted, 3);
+        // Right of the letters when they are there.
+        ui::paragraph(draw, category_face, readable(category_face, item.group_title),
+                      has_letters() ? 1260.0f : 1180.0f, 840, 24, has_letters() ? 540.0f : 600.0f,
+                      34, theme.text_muted, 3);
     }
     else
         ui::paragraph(draw, fonts.regular,
-                      tr("Browse movies or choose a show, then its season and episode."), 1200, 365,
-                      28, 570, 42, theme.text_muted, 7);
+                      tr("Browse movies or choose a show, then its season and episode."),
+                      has_letters() ? 1260.0f : 1200.0f, 365, 28, has_letters() ? 510.0f : 570.0f,
+                      42, theme.text_muted, 7);
     ui::text(draw, fonts.regular,
              fonts.regular.font->fit(model.vod().status(), 22, kWidth - 2 * kMargin), kMargin, 949,
              22, theme.text_muted);
+    if (has_letters())
+        draw_letters(canvas);
     if (details_open_)
         draw_details(canvas);
     if (filters_open_)
         draw_filters(canvas);
 }
+void VodScreen::draw_letters(ui::Canvas &canvas) const
+{
+    auto &list = canvas.list;
+    const auto &fonts = canvas.fonts;
+    const int selected = current_letter();
+    const float y = kLetterTop + static_cast<float>(selected) * kLetterPitch;
+    // The plate of the letter in use, as on Live TV: orange while the list has the focus;
+    // cream, larger and lit once the letters have it.
+    const float radius = letters_focused_ ? 18.0f : 11.5f;
+    if (letters_focused_)
+        list.glow({kLetterX - radius, y - radius, 2.0f * radius, 2.0f * radius}, radius, 24.0f,
+                  tone::accent.with_alpha(0.7f));
+    list.circle(kLetterX, y, radius, letters_focused_ ? tone::cream : tone::accent);
+    for (int letter = 0; letter < kLetterCount; ++letter)
+    {
+        const char text[2] = {letter_char(letter), '\0'};
+        const bool here = letter == selected;
+        // With the focus on them the letters make room around the one in use, which is
+        // written larger.
+        const float away = static_cast<float>(letter - selected);
+        const float push = letters_focused_ && !here
+                               ? std::copysign(std::exp(-(std::abs(away) - 1.0f) * 0.9f), away)
+                               : 0.0f;
+        const float cy = kLetterTop + static_cast<float>(letter) * kLetterPitch + 7.0f * push;
+        const float size = kLetterText + (letters_focused_ && here ? 7.0f : 0.0f);
+        // Letters with nothing under them stay, dimmed: the column keeps its shape.
+        const Color color = here                          ? tone::ink
+                            : letter_starts_[letter] >= 0 ? shared_.theme.text.with_alpha(0.88f)
+                                                          : kWhite.with_alpha(0.2f);
+        ui::text(list, fonts.semibold, text, kLetterX, baseline_for(cy, size), size, color,
+                 gfx::Align::center);
+    }
+}
 int VodScreen::hints(ui::Hint *out, int capacity) const
 {
+    if (letters_focused_)
+    {
+        const ui::Hint letters[] = {{ui::Button::dpad, tr("Jump to a letter")},
+                                    {ui::Button::cross, tr("List")},
+                                    {ui::Button::circle, tr("Back")}};
+        const int count = std::min(capacity, static_cast<int>(std::size(letters)));
+        std::copy_n(letters, count, out);
+        return count;
+    }
     const ui::Hint hints[] = {{ui::Button::cross, tr("Open / Watch")},
                               {ui::Button::right_stick, tr("Filter / Sort")},
                               {ui::Button::triangle, tr("Search")},

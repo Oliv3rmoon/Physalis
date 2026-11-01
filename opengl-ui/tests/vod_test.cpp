@@ -10,6 +10,9 @@
 #include <gtest/gtest.h>
 #include <chrono>
 #include <algorithm>
+#include <array>
+#include <iterator>
+#include <utility>
 #include <ctime>
 #include <cstdlib>
 #include <filesystem>
@@ -1494,6 +1497,209 @@ TEST_F(VodTest, ControllerFiltersByProviderGenreAndYearSortsAndOpensDetails)
     ptv::PlayRequest request;
     ASSERT_TRUE(model.take_play_request(&request));
     EXPECT_EQ(request.channel_name, "Beta");
+    model.close();
+}
+
+// The letters, from ProsperoTV #97 (JMU Technologies), on Physalis's list.
+TEST_F(VodTest, LettersWorkForMoviesAndShowsAndSkipEmptyLetters)
+{
+    const std::array<std::string, 6> names{"Zulu",  "bravo",       "Éclair",
+                                           "alpha", "007 Mission", "日本ドラマ"};
+    for (const auto kind : {ptv::VodKind::movies, ptv::VodKind::series})
+    {
+        SCOPED_TRACE(static_cast<int>(kind));
+        std::string records = "[";
+        for (unsigned i = 0; i < names.size(); ++i)
+        {
+            if (i)
+                records += ",";
+            records +=
+                "{\"" + std::string(kind == ptv::VodKind::movies ? "stream_id" : "series_id") +
+                "\":" + std::to_string(100 + i) + ",\"name\":\"" + names[i] +
+                "\",\"added\":" + std::to_string(1000 - i) + ",\"container_extension\":\"mp4\"}";
+        }
+        response(kind == ptv::VodKind::movies ? "get_vod_streams" : "get_series", records + "]");
+        ptv::Model model(dir);
+        ASSERT_TRUE(model.open());
+        model.view.vod_kind = static_cast<int>(kind);
+        model.view.vod_all = true;
+        const hui::ui::Fonts fonts{};
+        ptv::Shared shared(model, fonts, {});
+        ptv::VodScreen screen(shared);
+        screen.enter();
+        ASSERT_TRUE(settle(model));
+        screen.update();
+        ASSERT_EQ(screen.result_count(), names.size());
+        EXPECT_EQ(screen.result_titles().front(), "Zulu"); // the newest first
+        hui::ui::Feedback feedback;
+        const auto move = [&](hui::Direction direction)
+        {
+            hui::InputFrame input;
+            input.nav = direction;
+            screen.handle(input, feedback);
+        };
+        move(hui::Direction::right);
+        ASSERT_TRUE(screen.on_letters());
+        EXPECT_FALSE(screen.at_top());
+        EXPECT_EQ(model.view.vod_sort, 1); // Title A-Z, so that each letter is one run
+        EXPECT_EQ(screen.result_titles(),
+                  (std::vector<std::string>{"007 Mission", "日本ドラマ", "alpha", "bravo", "Éclair",
+                                            "Zulu"}));
+        EXPECT_EQ(model.view.vod_focus, 5); // Zulu, where the focus was, survives the reorder
+        move(hui::Direction::up);
+        EXPECT_EQ(model.view.vod_focus, 4); // E, with the accented letters
+        move(hui::Direction::up);
+        EXPECT_EQ(model.view.vod_focus, 3); // B
+        move(hui::Direction::up);
+        EXPECT_EQ(model.view.vod_focus, 2); // A; C and D have nothing and are passed over
+        move(hui::Direction::up);
+        EXPECT_EQ(model.view.vod_focus, 0); // '#': digits and other scripts
+        move(hui::Direction::up);
+        EXPECT_EQ(model.view.vod_focus, 0);
+        move(hui::Direction::down);
+        EXPECT_EQ(model.view.vod_focus, 2);
+        hui::InputFrame confirm;
+        confirm.pressed = hui::action_bit(hui::Action::confirm);
+        screen.handle(confirm, feedback); // back to the list, nothing opened
+        EXPECT_FALSE(screen.on_letters());
+        EXPECT_EQ(model.view.vod_focus, 2);
+        EXPECT_EQ(model.view.vod_kind, static_cast<int>(kind));
+        ptv::PlayRequest request;
+        EXPECT_FALSE(model.take_play_request(&request));
+        move(hui::Direction::right);
+        ASSERT_TRUE(screen.on_letters());
+        move(hui::Direction::left);
+        EXPECT_FALSE(screen.on_letters());
+        move(hui::Direction::right);
+        ASSERT_TRUE(screen.back()); // Circle leaves the letters first
+        EXPECT_FALSE(screen.on_letters());
+        EXPECT_TRUE(model.view.vod_all);
+        model.close();
+    }
+}
+
+TEST_F(VodTest, LettersStayWithinNestedMovieAndShowCategories)
+{
+    const std::string categories =
+        R"([{"category_id":1,"category_name":"Genres"},{"category_id":2,"category_name":"Comedy","parent_id":1},{"category_id":3,"category_name":"Drama","parent_id":1},{"category_id":4,"category_name":"Hidden","parent_id":1},{"category_id":5,"category_name":"Other"}])";
+    response("get_vod_categories", categories);
+    response("get_series_categories", categories);
+    for (const auto kind : {ptv::VodKind::movies, ptv::VodKind::series})
+    {
+        SCOPED_TRACE(static_cast<int>(kind));
+        const std::string id = kind == ptv::VodKind::movies ? "stream_id" : "series_id";
+        std::string records = "[";
+        const std::pair<const char *, int> titles[] = {
+            {"Alpha", 2}, {"Beta", 2}, {"Zulu", 2}, {"Delta", 3}, {"Forbidden", 4}, {"Omega", 5}};
+        for (unsigned i = 0; i < std::size(titles); ++i)
+            records += std::string(i ? "," : "") + "{\"" + id + "\":" + std::to_string(100 + i) +
+                       ",\"name\":\"" + titles[i].first +
+                       "\",\"category_id\":" + std::to_string(titles[i].second) + "}";
+        response(kind == ptv::VodKind::movies ? "get_vod_streams" : "get_series", records + "]");
+        ptv::Model model(dir);
+        ASSERT_TRUE(model.open());
+        ASSERT_TRUE(model.hide_category("Genres / Hidden", true));
+        model.view.vod_kind = static_cast<int>(kind);
+        model.view.vod_category = "Genres";
+        const hui::ui::Fonts fonts{};
+        ptv::Shared shared(model, fonts, {});
+        ptv::VodScreen screen(shared);
+        screen.enter();
+        ASSERT_TRUE(settle(model));
+        screen.update();
+        hui::ui::Feedback feedback;
+        const auto move = [&](hui::Direction direction)
+        {
+            hui::InputFrame input;
+            input.nav = direction;
+            screen.handle(input, feedback);
+        };
+        const auto confirm = [&]
+        {
+            hui::InputFrame input;
+            input.pressed = hui::action_bit(hui::Action::confirm);
+            screen.handle(input, feedback);
+        };
+        // Browse all, then Comedy, Drama and Hidden, which stays listed to be shown again.
+        move(hui::Direction::right);
+        ASSERT_TRUE(screen.on_letters());
+        EXPECT_EQ(model.view.vod_focus, 1); // Comedy: Browse all has no letter
+        move(hui::Direction::down);
+        EXPECT_EQ(model.view.vod_focus, 2); // Drama
+        move(hui::Direction::down);
+        EXPECT_EQ(model.view.vod_focus, 2); // the hidden category is no letter's
+        move(hui::Direction::up);
+        EXPECT_EQ(model.view.vod_focus, 1);
+        confirm(); // back to the list, without opening Comedy yet
+        EXPECT_EQ(model.view.vod_category, "Genres");
+        confirm();
+        ASSERT_EQ(model.view.vod_category, "Genres / Comedy");
+        EXPECT_EQ(screen.result_titles(), (std::vector<std::string>{"Alpha", "Beta", "Zulu"}));
+        move(hui::Direction::right);
+        ASSERT_TRUE(screen.on_letters());
+        EXPECT_EQ(model.view.vod_focus, 1); // Alpha; Browse all is not lettered
+        move(hui::Direction::down);
+        move(hui::Direction::down);
+        EXPECT_EQ(model.view.vod_focus, 3); // Zulu; nothing from Drama or Other
+        move(hui::Direction::up);
+        EXPECT_EQ(model.view.vod_focus, 2); // Beta
+        EXPECT_TRUE(screen.back());
+        EXPECT_FALSE(screen.on_letters());
+        EXPECT_EQ(model.view.vod_category, "Genres / Comedy");
+        model.close();
+    }
+}
+
+TEST_F(VodTest, LettersFollowTheSearchAndEpisodesHaveNone)
+{
+    ptv::Model model(dir);
+    ASSERT_TRUE(model.open());
+    model.view.vod_kind = static_cast<int>(ptv::VodKind::movies);
+    model.view.vod_all = true;
+    model.view.vod_query = "Alpha";
+    const hui::ui::Fonts fonts{};
+    ptv::Shared shared(model, fonts, {});
+    ptv::VodScreen screen(shared);
+    screen.enter();
+    ASSERT_TRUE(settle(model));
+    screen.update();
+    ASSERT_EQ(screen.result_count(), 1u);
+    hui::ui::Feedback feedback;
+    const auto move = [&](hui::Direction direction)
+    {
+        hui::InputFrame input;
+        input.nav = direction;
+        screen.handle(input, feedback);
+    };
+    move(hui::Direction::right);
+    ASSERT_TRUE(screen.on_letters());
+    hui::ui::Hint hints[6]{};
+    ASSERT_EQ(screen.hints(hints, 6), 3);
+    EXPECT_STREQ(hints[0].label, "Jump to a letter");
+    EXPECT_STREQ(hints[1].label, "List");
+    move(hui::Direction::down);
+    EXPECT_EQ(model.view.vod_focus, 0); // Beta movie is outside the search
+    ASSERT_TRUE(model.hide_category("US", true));
+    screen.update();
+    EXPECT_EQ(screen.result_count(), 0u);
+    EXPECT_FALSE(screen.on_letters());
+    move(hui::Direction::right);
+    EXPECT_FALSE(screen.on_letters());
+    ASSERT_TRUE(model.hide_category("US", false));
+    model.view.vod_kind = static_cast<int>(ptv::VodKind::episodes);
+    model.view.vod_series = "20";
+    model.view.vod_series_group = "Comedy";
+    model.view.vod_query.clear();
+    model.view.vod_sort = 0;
+    screen.enter();
+    ASSERT_TRUE(settle(model));
+    screen.update();
+    const auto episodes = screen.result_titles();
+    ASSERT_EQ(episodes.size(), 3u);
+    move(hui::Direction::right);
+    EXPECT_FALSE(screen.on_letters());
+    EXPECT_EQ(model.view.vod_sort, 0);
+    EXPECT_EQ(screen.result_titles(), episodes);
     model.close();
 }
 
