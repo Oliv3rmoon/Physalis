@@ -64,6 +64,10 @@ update_schedule g_schedule{}; // when a check is due, and the versions offered t
 bool g_found = false;         // an offer nobody has been told about yet
 self_update_check_result g_answer = SELF_UPDATE_UNKNOWN;
 self_update_offer g_offer{};
+// The offer the menu was last given, the one Update now installs: a later check may find a
+// newer release while the dialog is still open.
+self_update_check_result g_shown_answer = SELF_UPDATE_UNKNOWN;
+self_update_offer g_shown{};
 self_update_job g_job{}; // zero until the first begin, as the kit asks
 bool g_begun = false;
 
@@ -259,15 +263,17 @@ bool update_take(UpdateOffer *out)
     if (!g_found)
         return false;
     g_found = false;
+    g_shown = g_offer;
+    g_shown_answer = g_answer;
     if (out != nullptr)
     {
-        out->installable = g_answer == SELF_UPDATE_AVAILABLE;
-        out->version = g_offer.version[0] != '\0' ? g_offer.version : g_offer.available;
-        out->installed = g_offer.installed;
-        out->available = g_offer.available;
-        out->size = g_offer.size;
-        out->notes = g_offer.notes;
-        out->notes_truncated = g_offer.notes_truncated != 0;
+        out->installable = g_shown_answer == SELF_UPDATE_AVAILABLE;
+        out->version = g_shown.version[0] != '\0' ? g_shown.version : g_shown.available;
+        out->installed = g_shown.installed;
+        out->available = g_shown.available;
+        out->size = g_shown.size;
+        out->notes = g_shown.notes;
+        out->notes_truncated = g_shown.notes_truncated != 0;
     }
     return true;
 }
@@ -275,12 +281,12 @@ bool update_take(UpdateOffer *out)
 bool update_begin()
 {
     const std::lock_guard guard(g_lock);
-    if (g_answer != SELF_UPDATE_AVAILABLE)
+    if (g_shown_answer != SELF_UPDATE_AVAILABLE)
         return false;
     if (g_begun)
         self_update_finish(&g_job);
-    g_begun = self_update_start(&g_job, self_update_console(), &g_offer) == 1;
-    log("[TV] update: %s %s", g_begun ? "downloading" : "could not begin", g_offer.available);
+    g_begun = self_update_start(&g_job, self_update_console(), &g_shown) == 1;
+    log("[TV] update: %s %s", g_begun ? "downloading" : "could not begin", g_shown.available);
     return g_begun;
 }
 

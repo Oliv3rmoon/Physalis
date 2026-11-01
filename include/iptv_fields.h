@@ -31,7 +31,8 @@ extern "C"
     /* Bounded software decoder into caller-owned NV12: H.264's fallback, and the only
      * decoder for MPEG-1/2, which the console's has not. Returns 0 while buffered, 1 for a
      * progressive picture, 2 for interlaced, or a negative error. NULL/0 drains delayed
-     * pictures. Dimensions must match the decoded picture. */
+     * pictures. Dimensions must match the decoded picture. MPEG-1/2 data FFmpeg cannot
+     * decode gives 0, no picture: a broadcast with a damaged packet goes on. */
     int iptv_field_decode(iptv_field_parser_t *parser, const void *data, size_t bytes, void *output,
                           size_t output_bytes, uint32_t pitch, uint32_t surface_height,
                           uint32_t width, uint32_t height);
@@ -40,6 +41,13 @@ extern "C"
      * 16:9), from its sample aspect ratio; 0:0 for square samples or none given. */
     void iptv_field_display_aspect(const iptv_field_parser_t *parser, uint32_t *num,
                                    uint32_t *den);
+    /* The clock of the access unit the next iptv_field_decode call is given, carried through
+     * the decoder's reordering to the picture it makes; UINT64_MAX for none. */
+    void iptv_field_set_packet_pts(iptv_field_parser_t *parser, uint64_t pts_us);
+    /* The clock of the last picture iptv_field_decode returned, UINT64_MAX when its unit had
+     * none. A unit that made no picture (MPEG-2 skips a damaged one, or reinitialises on a new
+     * sample aspect ratio) has a clock below it. */
+    uint64_t iptv_field_picture_pts(const iptv_field_parser_t *parser);
 
     /* Copy one NV12 field to a distinct surface, interpolating only between rows
      * from that field. Never blend two moments or modify decoder reference pixels.

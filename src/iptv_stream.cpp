@@ -164,8 +164,12 @@ struct impl_t
     bool video_random_access;
     bool hevc_skip_rasl;
     // MPEG-1/2: a sequence header waits for the sequence extension that follows it (MPEG-2),
-    // or for the next start code without one (MPEG-1), with the values it gave.
+    // or for the next start code without one (MPEG-1), with the values it gave; within one
+    // look through the access unit being assembled, as the field pairing below.
     bool mpeg2_pending;
+    // This programme's video has had a sequence extension: it is MPEG-2, and a later header
+    // whose extension is missing (damaged) changes nothing.
+    bool mpeg2_extension_seen;
     uint32_t mpeg2_width, mpeg2_height, mpeg2_aspect;
     // Within one look through the access unit being assembled: a first field picture, whose
     // second field belongs to the same access unit.
@@ -841,6 +845,9 @@ static int settle_mpeg2_sequence(iptv_stream_session_t *session, impl_t *impl,
                                  const uint8_t *extension, size_t bytes)
 {
     impl->mpeg2_pending = false;
+    if (!extension && impl->mpeg2_extension_seen)
+        return IPTV_STREAM_OK;
+    impl->mpeg2_extension_seen |= extension != nullptr;
     uint32_t width = impl->mpeg2_width, height = impl->mpeg2_height;
     uint32_t profile = 0, level = 0, progressive = 1, chroma = 1;
     if (extension)
@@ -1228,11 +1235,15 @@ static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const
         }
         if (type == 0x82u && !says_dts)
             audio_type = 0; // not sound: listed with the other streams below
-        if (!next.video_pid && video_codec_for(type) != IPTV_STREAM_VIDEO_UNKNOWN)
+        // The console's decoder first: H.264 or HEVC listed beside MPEG-2 is the one played.
+        const uint32_t video_codec = video_codec_for(type);
+        if (video_codec != IPTV_STREAM_VIDEO_UNKNOWN &&
+            (!next.video_pid || (next.video_codec == IPTV_STREAM_VIDEO_MPEG2 &&
+                                 video_codec != IPTV_STREAM_VIDEO_MPEG2)))
         {
             next.video_pid = pid;
             next.video_stream_type = type;
-            next.video_codec = video_codec_for(type);
+            next.video_codec = video_codec;
         }
         else if (audio_type == 0x0fu || audio_type == 0x03u || audio_type == 0x04u ||
                  iptv_audio_software_type(audio_type))
@@ -1303,7 +1314,7 @@ static int parse_pmt_section(iptv_stream_session_t *session, impl_t *impl, const
         impl->video_sps = false;
         impl->video_pps = false;
         impl->video_vps = false;
-        impl->mpeg2_pending = false;
+        impl->mpeg2_pending = impl->mpeg2_extension_seen = false;
         impl->video_random_access = false;
         for (auto &parameter : impl->video_parameters)
             parameter = {};
@@ -1899,7 +1910,8 @@ static int process_video(iptv_stream_session_t *session, impl_t *impl, bool flus
         bool seen_vcl = false;
         bool emitted = false;
         size_t pending_prefix = kNoOffset;
-        impl->mpeg2_field_open = false;
+        // Each look starts at the unit's first byte, so it reads the sequence header again.
+        impl->mpeg2_pending = impl->mpeg2_field_open = false;
         size_t at = 0;
         bool need_more = false;
         while (at < impl->video_es.size)

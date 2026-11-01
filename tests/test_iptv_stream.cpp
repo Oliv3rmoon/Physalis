@@ -2104,7 +2104,7 @@ void AppendStartCode(std::vector<std::uint8_t> *es, std::uint8_t code, const Bit
 
 void Mpeg2Sequence(std::vector<std::uint8_t> *es, unsigned width, unsigned height, unsigned aspect,
                    int extension_progressive = 0, unsigned chroma = 1,
-                   unsigned profile_level = 0x48)
+                   unsigned profile_level = 0x48, bool matrices = false)
 {
     Bits header;
     header.put(width & 0xfffu, 12);
@@ -2114,7 +2114,13 @@ void Mpeg2Sequence(std::vector<std::uint8_t> *es, unsigned width, unsigned heigh
     header.put(0x3e80, 18);
     header.put(1, 1);
     header.put(112, 10);
-    header.put(0, 3); // constrained parameters, no matrices
+    header.put(0, 1); // constrained parameters
+    for (unsigned matrix = 0; matrix < 2; ++matrix)
+    {
+        header.put(matrices ? 1 : 0, 1); // load_intra / load_non_intra_quantiser_matrix
+        for (unsigned i = 0; matrices && i < 64; ++i)
+            header.put(16, 8);
+    }
     AppendStartCode(es, 0xb3, header);
     if (extension_progressive < 0)
         return; // MPEG-1: no extension
@@ -2376,6 +2382,74 @@ TEST(IptvStreamTest, Mpeg2SliceEndingInAZeroByteKeepsItAndEachPictureItsOwnClock
         EXPECT_EQ(fake.units[i], units[i]) << i;
         EXPECT_EQ(fake.pts[i], 1000000u + i * 40000u) << i;
     }
+    EXPECT_EQ(iptv_stream_cleanup(&session), IPTV_STREAM_OK);
+}
+
+TEST(IptvStreamTest, Mpeg2SequenceHeaderSplitFromTheRestOfItsUnitDoesNotReopen)
+{
+    // The parser looks at the unit again with every transport packet. A sequence header whose
+    // extension's end is still in the next packet (quantiser matrices, then zero stuffing) is
+    // read again from the start next time; it must not pass for MPEG-1 meanwhile, which would
+    // ask for a new decoder.
+    std::vector<std::vector<std::uint8_t>> units(4);
+    Mpeg2Sequence(&units[0], 720, 576, 2);
+    Mpeg2Gop(&units[0]);
+    Mpeg2Picture(&units[0], 1);
+    Mpeg2Picture(&units[1], 2);
+    Mpeg2Sequence(&units[2], 720, 576, 2, 0, 1, 0x48, true);
+    units[2].insert(units[2].end(), 60, 0x00); // stuffing past the first packet's payload
+    Mpeg2Gop(&units[2]);
+    Mpeg2Picture(&units[2], 1);
+    Mpeg2Picture(&units[3], 2);
+    // A sequence header that loses its extension (a damaged packet) changes nothing either.
+    auto damaged = units;
+    damaged[2].clear();
+    Mpeg2Sequence(&damaged[2], 720, 576, 2, -1);
+    Mpeg2Gop(&damaged[2]);
+    Mpeg2Picture(&damaged[2], 1);
+    for (const auto &stream : {Mpeg2Transport(0x02, units), Mpeg2Transport(0x02, damaged)})
+    {
+        Mpeg2Backend fake;
+        const auto backend = fake.backend();
+        iptv_stream_session_t session{};
+        iptv_stream_init(&session);
+        ASSERT_EQ(iptv_stream_open(&session, nullptr, &backend), IPTV_STREAM_OK);
+        ASSERT_EQ(iptv_stream_start(&session), IPTV_STREAM_OK);
+        for (std::size_t at = 0; at < stream.size(); at += 188)
+            ASSERT_EQ(iptv_stream_push(&session, stream.data() + at, 188), IPTV_STREAM_OK)
+                << iptv_stream_telemetry(&session)->last_error;
+        ASSERT_EQ(iptv_stream_stop(&session), IPTV_STREAM_OK);
+        EXPECT_EQ(fake.opens, 1u);
+        EXPECT_EQ(fake.format.video_profile, 4u);
+        EXPECT_EQ(fake.units.size(), 4u);
+        EXPECT_EQ(iptv_stream_telemetry(&session)->format.video_profile, 4u);
+        EXPECT_EQ(iptv_stream_cleanup(&session), IPTV_STREAM_OK);
+    }
+}
+
+TEST(IptvStreamTest, AProgrammeWithMpeg2AndH264VideoPlaysTheH264)
+{
+    // MPEG-2 listed first, then H.264 and sound: the console's decoder plays the H.264.
+    std::vector<std::uint8_t> section{0x02, 0xb0, 0x00, 0x00, 0x01, 0xc1, 0x00, 0x00, 0xe1,
+                                      0x10, 0xf0, 0x00, 0x02, 0xe1, 0x20, 0xf0, 0x00, 0x1b,
+                                      0xe1, 0x10, 0xf0, 0x00, 0x0f, 0xe1, 0x11, 0xf0, 0x00};
+    section[2] = static_cast<std::uint8_t>(section.size() - 3 + 4);
+    AppendCrc(&section);
+    std::vector<std::uint8_t> bytes;
+    AppendPacket(&bytes, PsiPacket(0, PatSection()));
+    AppendPacket(&bytes, PsiPacket(0x100, section));
+    AppendPacket(&bytes, NullPacket());
+    iptv_stream_session_t session{};
+    iptv_stream_init(&session);
+    ASSERT_EQ(iptv_stream_open(&session, nullptr, nullptr), IPTV_STREAM_OK);
+    ASSERT_EQ(iptv_stream_start(&session), IPTV_STREAM_OK);
+    ASSERT_EQ(iptv_stream_push(&session, bytes.data(), bytes.size()), IPTV_STREAM_OK)
+        << iptv_stream_telemetry(&session)->last_error;
+    const auto *telemetry = iptv_stream_telemetry(&session);
+    EXPECT_EQ(telemetry->format.video_codec, IPTV_STREAM_VIDEO_H264);
+    EXPECT_EQ(telemetry->format.video_pid, 0x110u);
+    EXPECT_EQ(telemetry->format.video_stream_type, 0x1bu);
+    EXPECT_EQ(telemetry->format.audio_pid, 0x111u);
     EXPECT_EQ(iptv_stream_cleanup(&session), IPTV_STREAM_OK);
 }
 

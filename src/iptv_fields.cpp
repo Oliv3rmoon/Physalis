@@ -58,9 +58,10 @@ struct iptv_field_parser
     bool progressive_sequence = true;
     AVRational frame_rate{0, 1};
     iptv_color_info_t color{2, 2, 2, 1, {}};
-    // The last decoded picture's sample aspect ratio and size.
+    // The last decoded picture's sample aspect ratio, size and clock; the next unit's clock.
     AVRational sample_aspect{0, 1};
     int picture_width = 0, picture_height = 0;
+    uint64_t picture_pts = UINT64_MAX, next_pts = UINT64_MAX;
     ~iptv_field_parser()
     {
         av_parser_close(parser);
@@ -296,6 +297,7 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
         if (result < 0)
             return result;
     }
+    const bool mpeg_video = mpeg(state->codec->codec_id);
     if (bytes)
     {
         if (state->draining)
@@ -305,7 +307,12 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
         if (result < 0)
             return result;
         std::memcpy(state->packet->data, data, bytes);
+        if (state->next_pts <= static_cast<uint64_t>(INT64_MAX))
+            state->packet->pts = static_cast<int64_t>(state->next_pts);
+        state->next_pts = UINT64_MAX;
         result = avcodec_send_packet(state->decoder, state->packet);
+        if (result == AVERROR_INVALIDDATA && mpeg_video)
+            return 0;
         if (result < 0)
             return result;
     }
@@ -318,7 +325,8 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
     }
     av_frame_unref(state->frame);
     const int result = avcodec_receive_frame(state->decoder, state->frame);
-    if (result == AVERROR(EAGAIN) || result == AVERROR_EOF)
+    if (result == AVERROR(EAGAIN) || result == AVERROR_EOF ||
+        (result == AVERROR_INVALIDDATA && mpeg_video))
         return 0;
     if (result < 0)
         return result;
@@ -326,7 +334,10 @@ int iptv_field_decode(iptv_field_parser_t *state, const void *data, size_t bytes
     if (frame.format != AV_PIX_FMT_YUV420P || frame.width != static_cast<int>(width) ||
         frame.height != static_cast<int>(height) || frame.linesize[0] < frame.width ||
         frame.linesize[1] < frame.width / 2 || frame.linesize[2] < frame.width / 2)
-        return AVERROR_INVALIDDATA;
+        return mpeg_video ? 0 : AVERROR_INVALIDDATA;
+    state->picture_pts = frame.pts != AV_NOPTS_VALUE && frame.pts >= 0
+                             ? static_cast<uint64_t>(frame.pts)
+                             : UINT64_MAX;
     state->sample_aspect = frame.sample_aspect_ratio;
     state->picture_width = frame.width;
     state->picture_height = frame.height;
@@ -367,6 +378,17 @@ void iptv_field_display_aspect(const iptv_field_parser_t *state, uint32_t *num, 
         *num = static_cast<uint32_t>(reduced_num);
         *den = static_cast<uint32_t>(reduced_den);
     }
+}
+
+void iptv_field_set_packet_pts(iptv_field_parser_t *state, uint64_t pts_us)
+{
+    if (state)
+        state->next_pts = pts_us;
+}
+
+uint64_t iptv_field_picture_pts(const iptv_field_parser_t *state)
+{
+    return state ? state->picture_pts : UINT64_MAX;
 }
 
 void iptv_field_decoder_reset(iptv_field_parser_t *state)

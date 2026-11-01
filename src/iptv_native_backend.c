@@ -2213,14 +2213,42 @@ failed:
     return result;
 }
 
+/* MPEG-1/2 can make no picture of a unit (FFmpeg skips a damaged one, and starts again on a new
+ * sample aspect ratio): its clock would stay pending and put every later picture a frame out,
+ * and fill the list. Pictures come out in display order, so a pending clock below the one shown
+ * belongs to a unit that made none. */
+static void forget_units_without_pictures(backend_state_t *state, uint64_t shown_pts_us)
+{
+    uint32_t index = 0;
+
+    if (shown_pts_us == UINT64_MAX)
+        return;
+    while (index < state->pending_pts.count)
+    {
+        const uint64_t pts_us = state->pending_pts.values[index].pts_us;
+        if (pts_us != UINT64_MAX && pts_us < shown_pts_us)
+        {
+            state->pending_pts.values[index] =
+                state->pending_pts.values[--state->pending_pts.count];
+            ++state->telemetry.dropped_delayed_frames;
+        }
+        else
+            ++index;
+    }
+    state->telemetry.pending_video_timestamps = state->pending_pts.count;
+}
+
 static int32_t decode_software_frame(backend_state_t *state, const void *bytes, size_t count,
-                                     videodec2_frame_t *frame, videodec2_output_t *output)
+                                     uint64_t pts_us, videodec2_frame_t *frame,
+                                     videodec2_output_t *output)
 {
     /* CPU writes must wait until the previous GPU read has completed. */
     int32_t result = complete_pending_presentation(state);
     if (result != 0)
         return result;
     const uint32_t pitch = state->config.coded_width;
+    if (software_codec(state->config.codec))
+        iptv_field_set_packet_pts(state->field_parser, bytes ? pts_us : UINT64_MAX);
     result = iptv_field_decode(state->field_parser, bytes, count, frame->buffer, frame->buffer_size,
                                pitch, state->config.coded_height, state->config.visible_width,
                                state->config.visible_height);
@@ -2230,7 +2258,10 @@ static int32_t decode_software_frame(backend_state_t *state, const void *bytes, 
     if (result != 0)
     {
         if (software_codec(state->config.codec))
+        {
             iptv_field_display_aspect(state->field_parser, &state->aspect_num, &state->aspect_den);
+            forget_units_without_pictures(state, iptv_field_picture_pts(state->field_parser));
+        }
         output->valid = 1;
         output->picture_count = (uint32_t)result;
         output->codec = state->mode->decoder_codec;
@@ -2312,7 +2343,7 @@ static int32_t submit_coded_frame(backend_state_t *state, const void *coded_fram
         iptv_field_parse(state->field_parser, coded_frame, frame_bytes);
     started = monotonic_us();
     if (state->telemetry.software_video)
-        result = decode_software_frame(state, coded_frame, frame_bytes, &frame, &output);
+        result = decode_software_frame(state, coded_frame, frame_bytes, pts_us, &frame, &output);
     else
     {
         result = sceVideodec2Decode(state->decoder, &input, &frame, &output);
@@ -2327,7 +2358,8 @@ static int32_t submit_coded_frame(backend_state_t *state, const void *coded_fram
             state->telemetry.software_video = 1;
             memset(&output, 0, sizeof(output));
             output.size = sizeof(output);
-            result = decode_software_frame(state, coded_frame, frame_bytes, &frame, &output);
+            result =
+                decode_software_frame(state, coded_frame, frame_bytes, pts_us, &frame, &output);
         }
     }
     elapsed = monotonic_us() - started;
@@ -3615,7 +3647,7 @@ static int32_t drain_video(backend_state_t *state)
         output.size = sizeof(output);
         started = monotonic_us();
         result = state->telemetry.software_video
-                     ? decode_software_frame(state, NULL, 0, &frame, &output)
+                     ? decode_software_frame(state, NULL, 0, UINT64_MAX, &frame, &output)
                      : sceVideodec2Flush(state->decoder, &frame, &output);
         elapsed = monotonic_us() - started;
         state->telemetry.decode_total_us += elapsed;
@@ -4556,6 +4588,24 @@ int main(void)
         assert(annex_b_has_vcl(IPTV_NATIVE_CODEC_MPEG2, picture, sizeof(picture)));
         assert(!annex_b_has_vcl(IPTV_NATIVE_CODEC_MPEG2, setup, sizeof(setup)));
         assert(annex_b_has_vcl(IPTV_NATIVE_CODEC_MPEG1, picture, sizeof(picture)));
+
+        /* A unit that made no picture: its clock goes once a later picture is shown. */
+        backend_state_t mpeg_state = {0};
+        assert(pending_pts_push(&mpeg_state.pending_pts, 120000, 1));
+        assert(pending_pts_push(&mpeg_state.pending_pts, 40000, 1)); /* never decoded */
+        assert(pending_pts_push(&mpeg_state.pending_pts, UINT64_MAX, 1));
+        assert(pending_pts_push(&mpeg_state.pending_pts, 80000, 1));
+        forget_units_without_pictures(&mpeg_state, UINT64_MAX);
+        assert(mpeg_state.pending_pts.count == 4);
+        forget_units_without_pictures(&mpeg_state, 80000);
+        assert(mpeg_state.pending_pts.count == 3);
+        assert(mpeg_state.telemetry.dropped_delayed_frames == 1);
+        assert(mpeg_state.telemetry.pending_video_timestamps == 3);
+        assert(pending_pts_take_smallest(&mpeg_state.pending_pts, &pts_us, &displayable) &&
+               pts_us == 80000);
+        assert(pending_pts_take_smallest(&mpeg_state.pending_pts, &pts_us, &displayable) &&
+               pts_us == 120000);
+        assert(mpeg_state.pending_pts.count == 1);
     }
     return 0;
 }

@@ -1288,6 +1288,8 @@ struct SoftwarePictures
     iptv_stream_format_t format{};
     unsigned opens = 0, units = 0, pictures = 0, interlaced = 0, audio = 0, errors = 0;
     std::vector<iptv_field_info_t> fields;
+    // Each unit's clock as submitted, and each picture's as it came out of the decoder.
+    std::vector<std::uint64_t> submitted, shown;
     std::uint32_t aspect_num = 0, aspect_den = 0;
     bool varied = false;
     std::unique_ptr<iptv_field_parser_t, decltype(&iptv_field_parser_destroy)> parser{
@@ -1304,6 +1306,7 @@ struct SoftwarePictures
     {
         ++pictures;
         interlaced += result == 2;
+        shown.push_back(iptv_field_picture_pts(parser.get()));
         iptv_field_display_aspect(parser.get(), &aspect_num, &aspect_den);
         // testsrc2 is anything but flat: a decoded picture has dark and light luma.
         unsigned low = 255, high = 0;
@@ -1337,10 +1340,13 @@ struct SoftwarePictures
                 static_cast<std::size_t>(format->coded_width) * format->coded_height * 3 / 2, 0);
             return d.parser ? 0 : -1;
         };
-        b.submit_video = [](void *self, const std::uint8_t *data, std::size_t bytes, std::uint64_t)
+        b.submit_video =
+            [](void *self, const std::uint8_t *data, std::size_t bytes, std::uint64_t pts)
         {
             auto &d = *static_cast<SoftwarePictures *>(self);
             ++d.units;
+            d.submitted.push_back(pts);
+            iptv_field_set_packet_pts(d.parser.get(), pts);
             d.fields.push_back(iptv_field_parse(d.parser.get(), data, bytes));
             const int result = d.decode(data, bytes);
             if (result < 0)
@@ -1390,9 +1396,20 @@ void PlayTransport(const std::vector<std::uint8_t> &bytes, SoftwarePictures *pic
     EXPECT_EQ(iptv_stream_cleanup(&session), IPTV_STREAM_OK);
 }
 
+// Pictures leave the decoder in display order, each with its own unit's clock (the backend
+// pairs them with their timestamps by it).
+void ExpectDisplayOrder(const SoftwarePictures &d)
+{
+    auto submitted = d.submitted;
+    std::sort(submitted.begin(), submitted.end());
+    EXPECT_EQ(d.shown, submitted);
+    EXPECT_TRUE(std::is_sorted(d.shown.begin(), d.shown.end()));
+}
+
 void ExpectBroadcastSd(const SoftwarePictures &d, unsigned first_field, std::uint32_t num,
                        std::uint32_t den, unsigned frames)
 {
+    ExpectDisplayOrder(d);
     EXPECT_EQ(d.opens, 1u);
     EXPECT_EQ(d.format.video_codec, IPTV_STREAM_VIDEO_MPEG2);
     EXPECT_EQ(d.format.video_stream_type, 0x02u);
@@ -1454,6 +1471,7 @@ TEST(Mpeg2, ProgressiveHdAndMpeg1AreShownWhole)
     // Square samples: shown at the picture's own shape.
     EXPECT_EQ(hd.aspect_num, 0u);
     EXPECT_TRUE(hd.varied);
+    ExpectDisplayOrder(hd);
 
     SoftwarePictures mpeg1;
     PlayTransport(Fixture("mpeg1.ts"), &mpeg1);
@@ -1469,6 +1487,7 @@ TEST(Mpeg2, ProgressiveHdAndMpeg1AreShownWhole)
     EXPECT_EQ(mpeg1.pictures, 25u);
     EXPECT_EQ(mpeg1.interlaced, 0u);
     EXPECT_TRUE(mpeg1.varied);
+    ExpectDisplayOrder(mpeg1);
 }
 
 TEST(Mpeg2, ASizeChangeOpensAFreshDecoderAtTheNewHeaderFromTheLiveHistory)

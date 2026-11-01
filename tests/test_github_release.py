@@ -70,6 +70,11 @@ class GitHubReleaseTest(unittest.TestCase):
         self.assertIn("update_schedule_end(&g_schedule)", check)
         self.assertLess(check.index("update_schedule_offer(&g_schedule, result.available)"),
                         check.index("g_found = true"))
+        # Update now installs the release the dialog shows, even if a later check found another.
+        begin = update.split("bool update_begin()", 1)[1].split("UpdateProgress update_poll()", 1)[0]
+        self.assertIn("self_update_start(&g_job, self_update_console(), &g_shown)", begin)
+        take = update.split("bool update_take(UpdateOffer *out)", 1)[1].split("bool update_begin()", 1)[0]
+        self.assertIn("g_shown = g_offer;", take)
         # Begun from the menu's frame loop (and at launch), never from playback.
         main = (ROOT / "opengl-ui/ps5/src/main.cpp").read_text(encoding="utf-8")
         menu = main.split("bool run_menu(", 1)[1].split("\n}\n", 1)[0]
