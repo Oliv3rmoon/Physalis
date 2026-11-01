@@ -5,6 +5,27 @@ What changed in each release of Physalis, newest first. Physalis was called Nigh
 are in `docs/releases/<version>.md`. What changed in ProsperoTV before Nightshade TV is in the
 earlier files there.
 
+## Physalis v1.002.004: long lists, faster
+
+Scroll faster, jump to a letter in On demand, and why a channel didn't open in plain words, as a
+tester asked. What changed:
+
+- **Faster scrolling.** Hold Up or Down and the focus goes faster the longer you hold it: two rows
+  a step after about a second, then four, then eight. In Live TV, Favorites, On demand, Sources and
+  the provider's categories. L2 and R2 still turn a page; held for 3, 5 and 7 seconds they turn
+  two, four and eight pages at a time, and they now turn pages of the provider's categories too.
+- **Letters in On demand.** In Movies, TV shows and their categories, Right goes onto the letters
+  beside the list, # and A to Z as on Live TV: Up and Down jump to the next letter with titles,
+  and Left, Cross or Circle go back to the list. Going onto the letters sorts the list Title A–Z.
+  Ported from ProsperoTV, by JMU Technologies.
+- **Network errors in plain words.** A channel that doesn't open says why in your language, such
+  as "the channel's server could not be reached in time; it may be offline or blocked on this
+  network (curl 28)", instead of "connection failed (native error 0xFFFFD8D4)". When a channel's
+  server can't be reached, it is no longer asked three times over (about thirty seconds for some
+  channels); Physalis says so after the first try. Some of the public list's channels are on
+  servers that no longer take connections. A channel list that can't be downloaded says why the
+  same way.
+
 ## Physalis v1.002.003: the community in About
 
 Where to find other Physalis viewers, from the app. What changed:

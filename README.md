@@ -20,7 +20,7 @@
   <a href="https://buymeacoffee.com/oliv3rmoon"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-0d0d0f?style=for-the-badge&logo=buymeacoffee&logoColor=e5484d" alt="Buy me a coffee"></a>
 </p>
 
-Physalis is a native IPTV client for the PS5, and a Nightshade app by **[Oliv3rmoon](https://github.com/Oliv3rmoon)**: your own playlists and accounts, a programme guide, recording and multiview, now with Plex. The current release is **01.002.003**, a full release; what changed is in the [changelog](docs/CHANGELOG.md).
+Physalis is a native IPTV client for the PS5, and a Nightshade app by **[Oliv3rmoon](https://github.com/Oliv3rmoon)**: your own playlists and accounts, a programme guide, recording and multiview, now with Plex. The current release is **01.002.004**, a full release; what changed is in the [changelog](docs/CHANGELOG.md).
 
 ## Why Physalis
 
