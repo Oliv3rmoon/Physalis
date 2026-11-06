@@ -305,6 +305,20 @@ void SetRequestFailure(const char *context, iptv::http::Status status, int http_
     SetLastPlaybackError("%s: %s.", context, reason);
 }
 
+// Why a playlist that arrived cannot be played. One that lists nothing is a channel that is not
+// streaming, not a playlist Physalis misread.
+void SetUnplayablePlaylist(const char *playlist, std::size_t bytes, iptv_hls_result_t parsed)
+{
+    if (iptv::http::ResponseIndicatesGeographicBlock(playlist, bytes))
+        SetLastPlaybackError(
+            "Playlist request failed: unavailable in your region (GeoIP blocked).");
+    else if (parsed == IPTV_HLS_EMPTY)
+        SetLastPlaybackError(
+            "The channel is not streaming right now: its HLS playlist lists nothing to play.");
+    else
+        SetLastPlaybackError("HLS playlist is not playable: %s.", iptv_hls_result_name(parsed));
+}
+
 std::uint64_t MonotonicUsec()
 {
     timespec now{};
@@ -2594,14 +2608,9 @@ int RunHlsMedia(const char *source_url, StreamRunner *runner, std::uint8_t *read
         }
         if (parsed != IPTV_HLS_OK || playlist->kind != IPTV_HLS_KIND_MEDIA)
         {
-            if (iptv::http::ResponseIndicatesGeographicBlock(playlist_data, playlist_bytes))
-                SetLastPlaybackError(
-                    "Playlist request failed: unavailable in your region (GeoIP blocked).");
-            else
-                SetLastPlaybackError(
-                    "HLS playlist is not playable: %s.",
-                    iptv_hls_result_name(parsed == IPTV_HLS_OK ? IPTV_HLS_MALFORMED : parsed));
-            return parsed == IPTV_HLS_OK ? IPTV_HLS_MALFORMED : parsed;
+            const iptv_hls_result_t failure = parsed == IPTV_HLS_OK ? IPTV_HLS_MALFORMED : parsed;
+            SetUnplayablePlaylist(playlist_data, playlist_bytes, failure);
+            return failure;
         }
         std::snprintf(media_url, sizeof(media_url), "%s", effective_url);
 
@@ -2730,11 +2739,7 @@ int RunHls(const char *source_url, StreamRunner *runner, std::uint8_t *read_buff
                                                     std::strlen(effective_url), &limits, playlist);
     if (parsed != IPTV_HLS_OK && parsed != IPTV_HLS_UNSUPPORTED_FMP4)
     {
-        if (iptv::http::ResponseIndicatesGeographicBlock(playlist_data, playlist_bytes))
-            SetLastPlaybackError(
-                "Playlist request failed: unavailable in your region (GeoIP blocked).");
-        else
-            SetLastPlaybackError("HLS playlist is not playable: %s.", iptv_hls_result_name(parsed));
+        SetUnplayablePlaylist(playlist_data, playlist_bytes, parsed);
         delete playlist;
         return parsed;
     }

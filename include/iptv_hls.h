@@ -37,7 +37,10 @@ typedef enum iptv_hls_result {
     IPTV_HLS_UNSUPPORTED_FMP4 = -10,
     IPTV_HLS_UNSUPPORTED_CODEC = -11,
     IPTV_HLS_NO_VARIANT_WITHIN_LIMITS = -12,
-    IPTV_HLS_UNSUPPORTED_FEATURE = -13
+    IPTV_HLS_UNSUPPORTED_FEATURE = -13,
+    /* The header and nothing to play: no variant, no segment, no master or media tag. A server
+     * answers this way for a stream that is not live (Streamhoster/Wowza, for one). */
+    IPTV_HLS_EMPTY = -14
 } iptv_hls_result_t;
 
 typedef enum iptv_hls_kind {

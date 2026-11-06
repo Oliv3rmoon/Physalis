@@ -255,7 +255,8 @@ No PlxNative code is included.
   alternate addresses without giving up on the channel.
 - Show a tuning screen until the channel's first picture, and say why a
   channel did not open: HTTP status, regional restriction, unsupported
-  encryption or codec, malformed playlist, or decoder error.
+  encryption or codec, malformed playlist, an empty playlist from a channel
+  that is not streaming, or decoder error.
 
 ### Household
 

@@ -8,6 +8,8 @@
 
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 
@@ -281,6 +283,44 @@ TEST(IptvHlsTest, AcceptsTagsBetweenTheDurationAndTheAddress)
     EXPECT_EQ(
         iptv_hls_parse(twice, std::strlen(twice), base, std::strlen(base), nullptr, playlist.get()),
         IPTV_HLS_MALFORMED);
+}
+
+// PBS Kids Eastern/Central, from iptv-org's public list, is served by Streamhoster. Its server
+// answers these 25 bytes, the header and a version line, for a stream that is not live, and the
+// same for a stream name that never existed (fetched 2026-11-05). A playlist that lists nothing
+// is empty, not malformed; anything that starts a master or media playlist and leaves it
+// incomplete, or is not a playlist, stays malformed.
+TEST(IptvHlsTest, CallsAPlaylistThatListsNothingEmptyNotMalformed)
+{
+    std::ifstream file("tests/fixtures/hls/pbs-kids-eastern-central.m3u8", std::ios::binary);
+    ASSERT_TRUE(file.is_open());
+    const std::string served{std::istreambuf_iterator<char>(file),
+                             std::istreambuf_iterator<char>()};
+    const char *url = "https://2-fss-2.streamhoster.com/pl_140/amlst:200914-1298290/playlist.m3u8";
+    auto playlist = std::make_unique<iptv_hls_playlist_t>();
+    const auto parse = [&](const std::string &text)
+    {
+        return iptv_hls_parse(text.data(), text.size(), url, std::strlen(url), nullptr,
+                              playlist.get());
+    };
+    EXPECT_EQ(parse(served), IPTV_HLS_EMPTY);
+    EXPECT_EQ(playlist->kind, IPTV_HLS_KIND_NONE);
+    EXPECT_EQ(playlist->variant_count, 0u);
+    EXPECT_EQ(playlist->segment_count, 0u);
+    EXPECT_STREQ(iptv_hls_result_name(IPTV_HLS_EMPTY), "empty playlist");
+    for (const char *text :
+         {"#EXTM3U\r\n#EXT-X-VERSION:3\r\n", "\xef\xbb\xbf#EXTM3U\n#EXT-X-VERSION:3\n",
+          "#EXTM3U\n#EXT-X-VERSION:3", "#EXTM3U\n",
+          "#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n# a comment\n\n#EXT-X-UNKNOWN-TAG:1\n"})
+        EXPECT_EQ(parse(text), IPTV_HLS_EMPTY) << text;
+    for (const char *text :
+         {"#EXT-X-VERSION:3\n", "<html><body>Stream not found</body></html>\n",
+          "#EXTM3U\n<html><body>Stream not found</body></html>\n",
+          "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:6,\n", "#EXTM3U\n#EXT-X-TARGETDURATION:6\n",
+          "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000\n",
+          "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"English\"\n",
+          "#EXTM3U\n#EXT-X-VERSION:3\n\x01\n"})
+        EXPECT_EQ(parse(text), IPTV_HLS_MALFORMED) << text;
 }
 
 } // namespace

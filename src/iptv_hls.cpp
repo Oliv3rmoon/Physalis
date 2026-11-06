@@ -1238,7 +1238,10 @@ extern "C" iptv_hls_result_t iptv_hls_parse(const char *data, size_t data_bytes,
         }
         return fmp4 ? fail(playlist, IPTV_HLS_UNSUPPORTED_FMP4, 0) : IPTV_HLS_OK;
     }
-    return fail(playlist, IPTV_HLS_MALFORMED, line_number);
+    /* Only the header, tags of neither kind (EXT-X-VERSION) and comments. RFC 8216 4.1 makes a
+     * playlist that is neither kind invalid, so it is still refused, but every line was sound:
+     * it lists nothing, as a server answers for a stream that is not live, and says so. */
+    return fail(playlist, IPTV_HLS_EMPTY, 0u);
 }
 
 extern "C" const char *iptv_hls_result_name(iptv_hls_result_t result)
@@ -1273,6 +1276,8 @@ extern "C" const char *iptv_hls_result_name(iptv_hls_result_t result)
         return "no variant within limits";
     case IPTV_HLS_UNSUPPORTED_FEATURE:
         return "unsupported HLS feature";
+    case IPTV_HLS_EMPTY:
+        return "empty playlist";
     default:
         return "unknown HLS result";
     }
