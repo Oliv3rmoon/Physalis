@@ -10,9 +10,9 @@ Nightshade's tools/render-home-art.py (Oliv3rmoon/Nightshade), with a television
 nightshade flower (five red petals round a pale cone), black berries and dark leaves, on near
 black with a red glow and faint stars, and Nightshade's palette (its "nightly" theme).
 
-Writes, in sce_sys/ and in opengl-ui/ps5/sce_sys/ (the copies the released app is built with):
-  icon0.png                     512x512: a black set lit red, the flower on its screen and two
-                                berries on its rods
+Writes, in sce_sys/ and in opengl-ui/ps5/sce_sys/ (the copies the released app is built with),
+icon0.png no longer among them: it is Physalis's logo, resized from
+assets/branding/physalis-logo-1024.png (--preview still draws the old one):
   background-source.png         3840x2160: an aerial at the right, the nightshade climbing it
   launch-background-source.png  3840x2160: a screen-shaped ring of red light round the flower
   pic0.dds, pic1.dds            those two as BC7 (the format, size and header the console's
@@ -495,7 +495,7 @@ def main():
         to_image(background(960, 540)).save(out / 'background.png')
         to_image(launch(960, 540)).save(out / 'launch.png')
         return
-    pictures = {'icon0.png': to_image(icon())}
+    pictures = {}  # icon0.png is the logo (assets/branding/physalis-logo-1024.png), not drawn here
     for source, target, draw in (('background-source.png', 'pic0.dds', background),
                                  ('launch-background-source.png', 'pic1.dds', launch)):
         picture = to_image(draw(), 'RGBA')
