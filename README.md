@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="sce_sys/icon0.png" width="128" alt="Physalis icon">
+  <img src="sce_sys/icon0.png" width="160" alt="Physalis logo">
 </p>
 
 <h1 align="center">Physalis</h1>
@@ -13,12 +13,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Oliv3rmoon/Physalis/releases/latest"><img src="https://img.shields.io/github/v/release/Oliv3rmoon/Physalis?style=for-the-badge&label=download&color=e5484d&labelColor=0d0d0f" alt="Download the latest release"></a>
-  <a href="https://discord.gg/pSqgRU3YP9"><img src="https://img.shields.io/badge/discord-nightly-0d0d0f?style=for-the-badge&logo=discord&logoColor=e5484d" alt="Discord: nightly"></a>
-  <a href="https://github.com/Oliv3rmoon/Physalis/stargazers"><img src="https://img.shields.io/github/stars/Oliv3rmoon/Physalis?style=for-the-badge&logo=github&logoColor=e5484d&color=e5484d&labelColor=0d0d0f" alt="GitHub stars"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-0d0d0f?style=for-the-badge&labelColor=0d0d0f&color=e5484d" alt="GPL-3.0-or-later"></a>
-  <a href="https://buymeacoffee.com/oliv3rmoon"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-0d0d0f?style=for-the-badge&logo=buymeacoffee&logoColor=e5484d" alt="Buy me a coffee"></a>
+  <a href="https://github.com/Oliv3rmoon/Physalis/releases"><img src="https://img.shields.io/github/v/release/Oliv3rmoon/Physalis?include_prereleases" alt="Latest release"></a>
+  <a href="https://discord.gg/pSqgRU3YP9"><img src="https://img.shields.io/badge/discord-join%20nightly-5865F2?logo=discord&logoColor=white" alt="Discord: join nightly"></a>
+  <a href="https://github.com/Oliv3rmoon/Physalis/stargazers"><img src="https://img.shields.io/github/stars/Oliv3rmoon/Physalis?style=social" alt="GitHub stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License: GPL-3.0-or-later"></a>
+  <a href="https://buymeacoffee.com/oliv3rmoon"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-e5484d?logo=buymeacoffee&logoColor=white" alt="Buy me a coffee"></a>
 </p>
+
+<p align="center">
+  <a href="https://github.com/Oliv3rmoon/Physalis/releases/latest"><strong>Download the latest release</strong></a><br>
+  Test builds are on the <a href="https://github.com/Oliv3rmoon/Physalis/releases">Releases page</a>, marked pre-release.
+</p>
+
+<p align="center">If Physalis works for you, a ⭐ helps other PS5 owners find it.</p>
 
 Physalis is a native IPTV client for the PS5, and a Nightshade app by **[Oliv3rmoon](https://github.com/Oliv3rmoon)**: your own playlists and accounts, a programme guide, recording and multiview, now with Plex. The current release is **01.002.003**, a full release; what changed is in the [changelog](docs/CHANGELOG.md).
 
@@ -118,6 +125,8 @@ Physalis is one of seven repositories in the Nightshade family, all by [Oliv3rmo
 - Built with the [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) by John Törnblom
   (ps5-payload-dev). Third-party components, authors and licenses are listed in
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Thanks to the testers in the nightly Discord who try every test build and send logs.
 
 ## Thanks
 
